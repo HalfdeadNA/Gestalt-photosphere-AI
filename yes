@@ -2807,4 +2807,24 @@ void main() {
   vec4 modelPosition = modelMatrix * vec4(morphedPosition, 1.0);
   gl_Position = projectionMatrix * viewMatrix * modelPosition;
 }
+ed={report.includeMetadata}
+            onChange={(e) => setReport({...report, includeMetadata: e.target.checked})}
+            className="w-5 h-5 accent-cyan-400" 
+          />
+        </div>
 
+        <button 
+          type="submit"
+          className="w-full py-4 bg-white text-black font-black rounded-xl flex items-center justify-center gap-2 hover:bg-red-400 transition-all"
+        >
+          <Send size={18} />
+          TRANSMIT TO FOUNDER
+        </button>
+      </form>
+    </div>
+  );
+};
+-- Add this to your Supabase Schema
+ALTER TABLE profiles 
+ADD COLUMN terms_accepted_at TIMESTAMPTZ,
+ADD COLUMN license_version TEXT DEFAULT '1.0';
