@@ -1,0 +1,2810 @@
+https://gestalt-photosphere-ai--halfdeadna.replit.app
+
+npm create vite@latest gestalt-field -- --template react-ts
+cd gestalt-field
+npm install
+npm install tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-black text-white;
+}
+
+src/
+  core/
+    state/
+    engine/
+  entities/
+  surfaces/
+  presence/
+  signals/
+  flows/
+  app/
+
+import { createContext, useContext, useState } from "react";
+
+type EnvironmentState = "idle" | "forming" | "rendering" | "published";
+
+type FieldState = {
+  creator?: string;
+  activeArtifact?: string;
+  environment: EnvironmentState;
+  energy: number;
+  setEnvironment: (e: EnvironmentState) => void;
+  setEnergy: (n: number) => void;
+};
+
+const FieldContext = createContext<FieldState | null>(null);
+
+export function FieldProvider({ children }: { children: React.ReactNode }) {
+  const [environment, setEnvironment] = useState<EnvironmentState>("idle");
+  const [energy, setEnergy] = useState(40);
+
+  return (
+    <FieldContext.Provider
+      value={{
+        environment,
+        energy,
+        setEnvironment,
+        setEnergy,
+      }}
+    >
+      {children}
+    </FieldContext.Provider>
+  );
+}
+
+export function useField() {
+  const ctx = useContext(FieldContext);
+  if (!ctx) throw new Error("useField must be used inside FieldProvider");
+  return ctx;
+}
+
+import { StudioSurface } from "../surfaces/StudioSurface";
+import { PresenceLayer } from "../presence/PresenceLayer";
+import { SignalOverlay } from "../signals/SignalOverlay";
+
+export default function Environment() {
+  return (
+    <div className="w-screen h-screen relative overflow-hidden">
+      <StudioSurface />
+      <PresenceLayer />
+      <SignalOverlay />
+    </div>
+  );
+}
+
+import { useField } from "../core/state/FieldContext";
+
+export function StudioSurface() {
+  const { energy, setEnergy } = useField();
+
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+
+      <div className="text-center">
+        <h1 className="text-5xl font-bold mb-6">
+          Enter the Field
+        </h1>
+
+        <p className="opacity-50 mb-6">
+          The system responds to interaction.
+        </p>
+
+        <button
+          onClick={() => setEnergy(energy + 10)}
+          className="px-6 py-3 bg-white text-black rounded-xl"
+        >
+          Increase Energy
+        </button>
+
+        <p className="mt-4 opacity-60">Energy: {energy}</p>
+      </div>
+
+    </div>
+  );
+}
+
+export function PresenceLayer() {
+  return (
+    <div className="absolute bottom-6 right-6 w-80">
+
+      <div className="bg-white/10 backdrop-blur p-4 rounded-xl">
+        <p className="text-xs opacity-50 mb-2">Presence active</p>
+
+        <p className="text-sm">
+          The structure is forming.  
+          Do you want to stabilize it?
+        </p>
+
+        <div className="mt-3 flex gap-2">
+          <button className="bg-white text-black px-3 py-1 rounded">
+            Yes
+          </button>
+          <button className="border px-3 py-1 rounded">
+            Ignore
+          </button>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+import { useField } from "../core/state/FieldContext";
+
+export function SignalOverlay() {
+  const { energy, environment } = useField();
+
+  return (
+    <div className="absolute top-6 left-6 bg-white/10 p-4 rounded-xl">
+
+      <p className="text-xs opacity-50">Signals</p>
+
+      <p className="text-sm">Environment: {environment}</p>
+      <p className="text-sm">Energy: {energy}</p>
+
+    </div>
+  );
+}
+
+import { useField } from "../core/state/FieldContext";
+
+export function useGenesis() {
+  const { setEnvironment } = useField();
+
+  function begin() {
+    setEnvironment("forming");
+  }
+
+  function render() {
+    setEnvironment("rendering");
+  }
+
+  function publish() {
+    setEnvironment("published");
+  }
+
+  return { begin, render, publish };
+}
+
+import React from "react";
+import ReactDOM from "react-dom/client";
+import Environment from "./app/Environment";
+import { FieldProvider } from "./core/state/FieldContext";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <FieldProvider>
+      <Environment />
+    </FieldProvider>
+  </React.StrictMode>
+);
+
+type Artifact = {
+  id: string;
+  name: string;
+  state: string;
+  value: number;
+};
+
+npm install @supabase/supabase-js
+
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+import { useEffect, useState } from "react";
+import { supabase } from "../engine/supabase";
+
+export function useCreator() {
+  const [creator, setCreator] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCreator(data.user);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
+      setCreator(session?.user ?? null);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  return { creator };
+}
+
+import { useState } from "react";
+import { supabase } from "../core/engine/supabase";
+
+export function AuthGate() {
+  const [email, setEmail] = useState("");
+
+  async function signIn() {
+    await supabase.auth.signInWithOtp({ email });
+    alert("Check your email ✉️");
+  }
+
+  return (
+    <div className="h-screen flex items-center justify-center">
+      <div className="p-6 bg-white/10 rounded-xl">
+        <h2 className="text-xl mb-4">Enter Identity</h2>
+
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@domain.com"
+          className="px-3 py-2 rounded bg-black border w-full mb-3"
+        />
+
+        <button onClick={signIn} className="w-full bg-white text-black py-2 rounded">
+          Send Access Link
+        </button>
+      </div>
+    </div>
+  );
+}
+
+import { useCreator } from "../core/state/useCreator";
+import { AuthGate } from "../surfaces/AuthGate";
+
+export default function Environment() {
+  const { creator } = useCreator();
+
+  if (!creator) return <AuthGate />;
+
+  return (
+    <div className="w-screen h-screen relative">
+      <StudioSurface />
+      <PresenceLayer />
+      <SignalOverlay />
+    </div>
+  );
+}
+
+npm install express cors dotenv openai
+
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import OpenAI from "openai";
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+app.post("/generate", async (req, res) => {
+  const { prompt } = req.body;
+
+  try {
+    const result = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt,
+      size: "1024x1024",
+    });
+
+    res.json({ image: result.data[0].url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(3001, () => console.log("AI engine running ⚡"));
+
+import { useState } from "react";
+
+export function CanvasLayer() {
+  const [prompt, setPrompt] = useState("");
+  const [image, setImage] = useState<string | null>(null);
+
+  async function generate() {
+    const res = await fetch("http://localhost:3001/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const data = await res.json();
+    setImage(data.image);
+  }
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center">
+
+      {image && (
+        <img src={image} className="w-[400px] rounded-xl mb-4" />
+      )}
+
+      <input
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        placeholder="Describe what should exist..."
+        className="px-4 py-2 rounded bg-black border mb-2"
+      />
+
+      <button onClick={generate} className="bg-white text-black px-4 py-2 rounded">
+        Generate
+      </button>
+
+    </div>
+  );
+}
+
+import { CanvasLayer } from "./CanvasLayer";
+
+export function StudioSurface() {
+  return (
+    <div className="w-full h-full relative">
+      <CanvasLayer />
+    </div>
+  );
+}
+
+npm install -g vercel
+vercel
+
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+
+OPENAI_API_KEY=your_key
+
+https://your-api.onrender.com
+
+const res = await fetch("https://your-api.onrender.com/generate", ...)
+
+create table artifacts (
+  id uuid default uuid_generate_v4() primary key,
+  creator_id uuid,
+  prompt text,
+  image_url text,
+  created_at timestamp default now()
+);
+
+await supabase.from("artifacts").insert({
+  creator_id,
+  prompt,
+  image_url: result.data[0].url
+});
+
+Frontend (Vercel)
+  ├─ 3D Studio (Three.js)
+  ├─ AI Canvas
+  ├─ Marketplace UI
+  ├─ Realtime presence
+
+Backend (Node / Edge)
+  ├─ AI generation (OpenAI)
+  ├─ Stripe payments
+  ├─ Artifact storage
+  ├─ Realtime sync (Supabase)
+
+Database (Supabase)
+  ├─ creators
+  ├─ artifacts
+  ├─ sessions
+  ├─ transactions
+
+npm install three @react-three/fiber @react-three/drei
+
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+
+function ArtifactMesh() {
+  return (
+    <mesh>
+      <sphereGeometry args={[1, 64, 64]} />
+      <meshStandardMaterial color="hotpink" />
+    </mesh>
+  );
+}
+
+export function ThreeStudio() {
+  return (
+    <div className="w-full h-full">
+      <Canvas camera={{ position: [0, 0, 4] }}>
+        <ambientLight intensity={0.5} />
+        <directionalLight position={[2, 2, 2]} />
+
+        <ArtifactMesh />
+
+        <OrbitControls />
+      </Canvas>
+    </div>
+  );
+}
+
+import { ThreeStudio } from "./ThreeStudio";
+
+export function StudioSurface() {
+  return (
+    <div className="w-full h-full">
+      <ThreeStudio />
+    </div>
+  );
+}
+
+<meshStandardMaterial map={texture} />
+
+npm install stripe
+
+import Stripe from "stripe";
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+app.post("/checkout", async (req, res) => {
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: "Artifact Purchase",
+          },
+          unit_amount: 500, // $5
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: "http://localhost:5173/success",
+    cancel_url: "http://localhost:5173",
+  });
+
+  res.json({ url: session.url });
+});
+
+async function buyArtifact() {
+  const res = await fetch("/checkout", { method: "POST" });
+  const data = await res.json();
+  window.location.href = data.url;
+}
+
+create table prompts (
+  id uuid primary key default uuid_generate_v4(),
+  creator_id uuid,
+  prompt text,
+  image_url text,
+  created_at timestamp default now()
+);
+
+await supabase.from("prompts").insert({
+  creator_id: creator.id,
+  prompt,
+  image_url,
+});
+
+export function useMemory() {
+  async function getHistory() {
+    return supabase.from("prompts").select("*").order("created_at", { ascending: false });
+  }
+
+  return { getHistory };
+}
+
+import { useEffect, useState } from "react";
+import { supabase } from "../core/engine/supabase";
+
+export function Gallery() {
+  const [artifacts, setArtifacts] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabase.from("artifacts").select("*").then(({ data }) => {
+      setArtifacts(data || []);
+    });
+  }, []);
+
+  return (
+    <div className="grid grid-cols-3 gap-4 p-6">
+      {artifacts.map((a) => (
+        <div key={a.id} className="bg-white/10 p-3 rounded-xl">
+          <img src={a.image_url} className="rounded mb-2" />
+          <p className="text-xs opacity-60">{a.prompt}</p>
+
+          <button className="mt-2 w-full bg-white text-black py-1 rounded">
+            Buy
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+import { supabase } from "../core/engine/supabase";
+
+export function usePresence(roomId: string) {
+  const channel = supabase.channel(roomId);
+
+  function join(user: any) {
+    channel.subscribe();
+    channel.track(user);
+  }
+
+  function onUpdate(callback: any) {
+    channel.on("presence", { event: "sync" }, callback);
+  }
+
+  return { join, onUpdate };
+}
+
+const { join, onUpdate } = usePresence("studio-room");
+
+useEffect(() => {
+  join({ user: "creator-1" });
+
+  onUpdate((state) => {
+    console.log("Active users:", state);
+  });
+}, []);
+
+npm install express-rate-limit
+
+app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
+  const event = stripe.webhooks.constructEvent(
+    req.body,
+    req.headers["stripe-signature"],
+    process.env.STRIPE_WEBHOOK_SECRET
+  );
+
+  if (event.type === "checkout.session.completed") {
+    // mark artifact as sold
+  }
+
+  res.sendStatus(200);
+});
+
+root/
+├── apps/
+│   ├── web/                # React (Vite / Next)
+│   ├── mobile/             # React Native (Expo)
+│   └── server/             # API (Node / Express)
+│
+├── packages/
+│   ├── ui/                 # shared UI components
+│   ├── three/              # 3D logic (meshes, controls)
+│   ├── engine/             # AI + generation logic
+│   ├── auth/               # auth helpers
+│   ├── db/                 # Supabase queries
+│   └── realtime/           # sockets / presence
+│
+├── infra/
+│   ├── docker/
+│   ├── terraform/          # optional later
+│
+├── .env
+├── package.json
+└── turbo.json              # monorepo (Turborepo)
+
+npm install turbo --save-dev
+
+{
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    }
+  }
+}
+
+type Player = {
+  id: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+};
+
+import { Server } from "socket.io";
+
+const io = new Server(3002, {
+  cors: { origin: "*" }
+});
+
+let players = {};
+
+io.on("connection", (socket) => {
+  players[socket.id] = { position: [0, 0, 0] };
+
+  socket.on("move", (pos) => {
+    players[socket.id].position = pos;
+    io.emit("players", players);
+  });
+
+  socket.on("disconnect", () => {
+    delete players[socket.id];
+  });
+});
+
+socket.on("players", (data) => {
+  setPlayers(data);
+});
+
+async function coCreate(prompt, context) {
+  return fetch("/ai/agent", {
+    method: "POST",
+    body: JSON.stringify({ prompt, context })
+  });
+}
+
+create table credits (
+  creator_id uuid,
+  balance int default 100
+);
+
+function spendCredits(cost: number) {
+  if (balance < cost) throw new Error("Not enough credits");
+  setBalance(balance - cost);
+}
+
+npx create-expo-app mobile
+
+import Queue from "bull";
+
+const queue = new Queue("generation");
+
+queue.process(async (job) => {
+  return generateImage(job.data.prompt);
+});
+
+root/
+├── apps/
+│   ├── web/              # Frontend (React + Vite)
+│   ├── server/           # API (Node + Express)
+│   └── realtime/         # WebSocket server
+│
+├── packages/
+│   ├── ui/               # shared UI components
+│   ├── three/            # 3D systems
+│   ├── engine/           # AI logic
+│   ├── db/               # Supabase queries
+│   └── auth/             # auth hooks
+│
+├── package.json
+├── turbo.json
+└── .env
+
+{
+  "name": "vibe-platform",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build"
+  },
+  "devDependencies": {
+    "turbo": "^1.10.0"
+  }
+}
+
+{
+  "pipeline": {
+    "dev": {
+      "cache": false
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    }
+  }
+}
+
+cd apps/web
+npm create vite@latest . -- --template react-ts
+npm install
+npm install @react-three/fiber @react-three/drei socket.io-client
+
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
+
+const socket = io("http://localhost:3002");
+
+export default function World() {
+  const [players, setPlayers] = useState<any>({});
+
+  useEffect(() => {
+    socket.on("players", setPlayers);
+  }, []);
+
+  function move(e: any) {
+    socket.emit("move", [Math.random(), 0, Math.random()]);
+  }
+
+  return (
+    <Canvas onClick={move}>
+      <ambientLight />
+      <OrbitControls />
+
+      {Object.entries(players).map(([id, p]: any) => (
+        <mesh key={id} position={p.position}>
+          <boxGeometry />
+          <meshStandardMaterial />
+        </mesh>
+      ))}
+    </Canvas>
+  );
+}
+
+npm init -y
+npm install express cors dotenv openai stripe
+
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import OpenAI from "openai";
+import Stripe from "stripe";
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+app.post("/generate", async (req, res) => {
+  const { prompt } = req.body;
+
+  const img = await openai.images.generate({
+    model: "gpt-image-1",
+    prompt
+  });
+
+  res.json({ image: img.data[0].url });
+});
+
+app.post("/checkout", async (req, res) => {
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    line_items: [{
+      price_data: {
+        currency: "usd",
+        product_data: { name: "Credits" },
+        unit_amount: 500
+      },
+      quantity: 1
+    }],
+    success_url: "http://localhost:5173",
+    cancel_url: "http://localhost:5173"
+  });
+
+  res.json({ url: session.url });
+});
+
+app.listen(3001, () => console.log("API running"));
+
+npm init -y
+npm install socket.io
+
+import { Server } from "socket.io";
+
+const io = new Server(3002, { cors: { origin: "*" } });
+
+let players = {};
+
+io.on("connection", (socket) => {
+  players[socket.id] = { position: [0, 0, 0] };
+
+  socket.on("move", (pos) => {
+    players[socket.id].position = pos;
+    io.emit("players", players);
+  });
+
+  socket.on("disconnect", () => {
+    delete players[socket.id];
+  });
+});
+
+-- creators
+create table creators (
+  id uuid primary key,
+  email text,
+  created_at timestamp default now()
+);
+
+-- worlds
+create table worlds (
+  id uuid primary key default uuid_generate_v4(),
+  name text,
+  owner_id uuid references creators(id),
+  created_at timestamp default now()
+);
+
+-- artifacts
+create table artifacts (
+  id uuid primary key default uuid_generate_v4(),
+  creator_id uuid references creators(id),
+  world_id uuid references worlds(id),
+  prompt text,
+  image_url text,
+  price int default 0,
+  created_at timestamp default now()
+);
+
+-- prompt memory
+create table prompts (
+  id uuid primary key default uuid_generate_v4(),
+  creator_id uuid,
+  prompt text,
+  result text,
+  created_at timestamp default now()
+);
+
+-- credits
+create table credits (
+  creator_id uuid primary key,
+  balance int default 100
+);
+
+-- transactions
+create table transactions (
+  id uuid primary key default uuid_generate_v4(),
+  creator_id uuid,
+  amount int,
+  type text,
+  created_at timestamp default now()
+);
+
+npm install @react-three/fiber @react-three/drei three zustand
+
+import { create } from "zustand";
+
+export const usePlayerStore = create((set) => ({
+  position: [0, 0, 0],
+  velocity: [0, 0, 0],
+  setPosition: (pos: number[]) => set({ position: pos }),
+}));
+
+import { useEffect } from "react";
+import { usePlayerStore } from "../engine/playerStore";
+
+export function useMovement() {
+  const setPosition = usePlayerStore((s: any) => s.setPosition);
+
+  useEffect(() => {
+    function handle(e: KeyboardEvent) {
+      let move = [0, 0, 0];
+
+      if (e.key === "w") move[2] -= 0.2;
+      if (e.key === "s") move[2] += 0.2;
+      if (e.key === "a") move[0] -= 0.2;
+      if (e.key === "d") move[0] += 0.2;
+
+      setPosition((prev: number[]) => [
+        prev[0] + move[0],
+        prev[1],
+        prev[2] + move[2],
+      ]);
+    }
+
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, []);
+}
+
+import { useGLTF } from "@react-three/drei";
+import { usePlayerStore } from "../engine/playerStore";
+
+export function Avatar() {
+  const { scene } = useGLTF("/avatar.glb");
+  const position = usePlayerStore((s: any) => s.position);
+
+  return <primitive object={scene} position={position} scale={1} />;
+}
+
+import { useAnimations } from "@react-three/drei";
+
+const { animations } = useGLTF("/avatar.glb");
+const { actions } = useAnimations(animations, groupRef);
+
+useEffect(() => {
+  actions["Walk"]?.play();
+}, []);
+
+socket.emit("move", position);
+
+npm install peerjs
+
+import Peer from "peerjs";
+
+export function useVoice(userId: string) {
+  const peer = new Peer(userId);
+
+  async function start() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    peer.on("call", (call) => {
+      call.answer(stream);
+
+      call.on("stream", (remoteStream) => {
+        const audio = new Audio();
+        audio.srcObject = remoteStream;
+        audio.play();
+      });
+    });
+
+    return { peer, stream };
+  }
+
+  return { start };
+}
+
+peer.call(otherUserId, stream);
+
+const distance = getDistance(player, other);
+
+audio.volume = Math.max(0, 1 - distance / 10);
+
+const useEditor = create((set) => ({
+  selected: null,
+  objects: [],
+  addObject: (obj) => set((s) => ({ objects: [...s.objects, obj] })),
+}));
+
+function spawnCube() {
+  addObject({
+    id: crypto.randomUUID(),
+    position: [0, 0, 0],
+    type: "cube",
+  });
+}
+
+import { TransformControls } from "@react-three/drei";
+
+<TransformControls object={selectedMesh}>
+  <mesh />
+</TransformControls>
+
+await supabase.from("worlds").update({
+  data: objects
+});
+
+const { data } = await supabase.from("worlds").select("*");
+setObjects(data.objects);
+
+<Instances>
+  <boxGeometry />
+  <meshStandardMaterial />
+</Instances>
+
+Gestalt Photosphere: A Visionary Creative Platform
+
+Mentally Creative Studios Presents
+
+Gestalt-Photosphere-AI  
+
+Immerse yourself in the ultimate creative environment with Gestalt-Photosphere-AI, a visionary platform that merges art, design, and AI-powered innovation. Designed for artists, creators, and professionals at all levels, this app transforms your digital workspace into an interactive, cinematic multiverse.
+
+Key Features:
+- AI-Assisted Creativity: Generate 2D, 3D, 4D, and 5D visuals with seamless assistance for all skill levels.
+- Advanced Editing Tools: Layered shading, smears, eraser effects, blending, remolding, scraping, and transitional dimensional areas.
+- Immersive Interface: Quick-sketch, hyper-realistic style with surreal and tactile aesthetics.
+- Dynamic Composition Modes: Supports realistic rendering, unfinished sketch overlays, toy-scale hyperrealism, and surreal storytelling.
+- Marketplace & Monetization: Sell artwork, earn royalties, and participate in auctions using USD-convertible in-app credits.
+- Learning & Growth: Access a certified academy with free and premium courses, and showcase your artistic credentials.
+- 360° CAD & Photosphere Display: Experience your art in high-fidelity XVR environments for professional gallery-ready presentations.
+- Community & Networking: Share, compete, and collaborate with a global creative community.
+
+Outcome & Application:
+Transform your portfolio space into a living gallery. Upload audio, images, or other media, and instantly visualize in dozens of professional styles. Gestalt-Photosphere-AI bridges traditional artistry with digital 5D storytelling, offering:
+- Passive income opportunities
+- Digital gallery creation
+- Competitions for rewards
+- High-fidelity immersive
+
+Visual Identity:
+- “Liquid Canvas”: Interactive white-cube base with aurora gradients, morphing 3D shapes, floating particles, and live physics animations
+- Typography: Syne for expressive titles and clear body text
+- Mood: Love, curiosity, and time-rush tension set against darkening sunsets
+
+Monetization & Support:
+- Multi-payment options: Stripe, PayPal, Crypto
+- Free app download with optional feature paywalls
+- 10,000 improvement tokens per project for iterative growth
+
+Bring your art to life in a premium, professional, and community-driven environment with Gestalt-Photosphere-AI.
+
+
+[10,000 token provided after creating for chat to ai improvements ]
+(message = 1 token)
+
+
+By mentally creative studios
+
+Introduction
+Gestalt Photosphere is an innovative creative platform that seamlessly integrates immersive aesthetics with precision design, offering a unique experience through three distinct identities. It transforms digital interfaces into cinematic environments, where sci-fi industrial futurism, organic digital expressionism, and dark luxury brutalism converge. This platform is designed to provide serious creators with a visually stunning, premium journey, making the act of creation intentional, tactile, and artful.
+
+Quintessential Multiverse Masterpiece
+
+Art Concept editing tools Overview
+The art concept is a hyper-detailed, professionally conceived piece executed using traditional mediums such as acrylic, sharpie, pen, and a single wood graphite pencil. Techniques employed include shading, smearing, large gum-rubber eraser effects, selective erasure, scraping, slicing and tape masking and  layering textures. The artwork is rendered in 8K resolution using Unreal Engine 5, merging 2D, 3D, and 4 dimensional aesthetics into a cinematic, multiverse-inspired visual narrative. With a full 360° foreground to background adjusting 
+
+Scene & Composition
+- Setting: A weathered wooden picnic table situated in a small-town suburban environment, with a softly glowing cityscape emerging beyond it under a fading, darkening sunset. Natural light halos add to the ambiance.
+- Mood: The scene transitions from light to dusk, imbued with psychological undertones of curiosity, anticipation, and narrative tension.
+- Stylistic Fusion: The composition combines realistic rendering, unfinished sketch overlays, toy-scale hyperrealism, and surreal elements to create depth and immersive storytelling.
+
+Character Design & Placement
+1. Corpse Bride–Inspired Spirit (Back Right):
+    - Photorealistic and semi-translucent with an ethereal aura.
+    - Positioned towards the rear of the 18x24 canvas, anchoring the emotional tone of the piece.
+2. Cyberpunk Child (Mid Foreground):
+    - Depicted as an 8–10-year-old wearing a full-face helmet with a lowered sun visor and cartoon-styled graphic art.
+    - The child is reaching for a 4D hyper-realistic toy car on the table, evoking a sense of motion and desire.
+3. Athletic Young Woman (Foreground):
+    - Quick-sketched in a dynamic pose, slightly bent at the waist with visible depth.
+    - Engages with a partially rolled-down car window, creating immediacy and a layered perspective.
+* 
+Gestalt Photosphere Platform
+
+* Core Functions
+- AI-Assisted Creation: Facilitates the generation, assistance, and help with 2D, 3D, 4D, and interactive 360° photosphere art.
+- CAD Auto-Sculpting, Animation, and Generative Visual Editing: Offers advanced tools for digital art creation.
+- Music Synchronization: Allows for seamless integration of music with visual art.
+- Art Marketplace: Features royalties, auctions, and USD-convertible in-app credits.
+* 
+* Design Philosophy
+- “Liquid Canvas” Visual Identity: Characterized by deep detail and depth, starting from an all-white cube base with aurora-inspired gradients, morphing shapes, floating particles, and live spring-realistic or user-chosen fantasy physics animations.
+- Typography: Utilizes Syne for expressive display and DM Sans for clarity and professionalism.
+* 
+* Advanced Capabilities
+- Multi-Payment Options: Supports Stripe, PayPal, and cryptocurrency.
+- Social Logins: Facilitates easy access through various social media platforms.
+- Certified Academy: Offers free and paid courses for skill development.
+- Real-Time Notifications and Analytics Dashboard: Provides users with immediate feedback and insights.
+- Full SEO Integration: Includes Open Graph and JSON-LD for enhanced search engine visibility.
+
+Outcome & Application
+The final piece delivers a professional-grade, immersive 360° high-fidelity CAD-designed visual narrative that bridges traditional painting CAD designing with digital 4D environments. This offers both gallery display opportunities and platform-driven monetization options, allowing creators to make a significant impact.
+
+Transform your art portfolio space with AI-powered design. Upload a photo of any room and instantly visualize it in dozens of stunning professional styles.
+
+- Earn Passive Income: Through digital art galleries and paid membership subscriptions.
+- Compete in Competitions: Earn money and recognition.
+- 360° CAD Viewing: For your art design.
+- Education and Certified Learning: Access to a wide range of courses.
+- Community Engagement: Connect, network, and communicate with fellow creators.
+- Portfolio and Artist Name Recognition: Utilize AI abilities to enhance visibility.
+- Free Usage: Unlimited access to core features, with a paywall for extras.
+- Monetary Benefits: Earn discounts and free extras through participation in competitions and activities.
+
+
+Gestalt Photosphere: Revolutionize Your Creative Journey
+
+Discover the Future of Art Creation
+
+Gestalt Photosphere is your gateway to a visionary creative experience, where immersive aesthetics meet precision design. This innovative platform transforms digital interfaces into cinematic environments, blending sci-fi industrial futurism, organic digital expressionism, and dark luxury brutalism. Designed for serious creators, it offers a visually stunning, premium journey that makes creation intentional, tactile, and artful.
+
+Unleash Your Artistic Potential
+
+- Art Concept Editing Tools: Dive into hyper-detailed art creation using traditional mediums like acrylic and pen, rendered in stunning 8K resolution with Unreal Engine 5. Merge 2D, 3D, and 4D aesthetics into a cinematic, multiverse-inspired narrative.
+- Scene & Composition: Experience a seamless transition from light to dusk in a suburban setting, with a cityscape backdrop. The composition combines realistic rendering, sketch overlays, and surreal elements for immersive storytelling.
+- Character Design & Placement: Engage with a diverse cast, from a photorealistic spirit to a cyberpunk child and an athletic young woman, each adding depth and narrative tension to your artwork.
+* 
+Explore the Gestalt Photosphere Platform
+
+- Core Functions: Utilize AI-assisted creation, CAD auto-sculpting, animation, and generative visual editing. Seamlessly integrate music with your art and explore an art marketplace with royalties and auctions.
+- Design Philosophy: Embrace the “Liquid Canvas” visual identity with deep detail and depth, featuring aurora-inspired gradients and fantasy physics animations. Choose from expressive Syne typography and clear DM Sans for your projects.
+- Advanced Capabilities: Benefit from multi-payment options, social logins, a certified academy, real-time notifications, analytics, and full SEO integration for enhanced visibility.
+
+Transform Your Art Portfolio
+
+- Earn Passive Income: Showcase your work in digital art galleries and earn through paid memberships.
+- Compete & Earn: Participate in competitions for recognition and monetary rewards.
+- 360° CAD Viewing: Visualize your art designs in immersive 360° environments.
+- Education & Learning: Access a wide range of courses for skill development.
+- Community Engagement: Connect with fellow creators and enhance your visibility through AI-powered tools.
+- Free Usage: Enjoy unlimited access to core features, with optional extras available.
+* 
+* Download Gestalt Photosphere today and elevate your creative process with cutting-edge technology and a vibrant community. Transform your art portfolio and make a lasting impact in the world of digital art.
+
+By creative minds studios
+
+
+
+
+
+
+This is a high-level vision. You are blending Unreal Engine 5 aesthetics with CAD precision and Liquid Canvas design philosophy. To make a "Gestalt" (where the whole is greater than the sum of its parts) actually work, your data needs to be incredibly interconnected.
+Below are the Mastery Taxonomy templates. These are designed to link your Education (Academy), Marketplace (Royalties/Auctions), and Studio (Creation Tools) together.
+1. JSON Mastery Taxonomy (Relational Structure)
+This format is best for your developers or for setting up your NoSQL database (like MongoDB/Firebase). It shows how a single "Asset" connects to different parts of your ecosystem.
+
+{
+  "taxonomy_version": "1.0",
+  "studio_entity": "Creative Minds Studios",
+  "brand_identity": "Gestalt Photosphere",
+  "collections": {
+    "creative_assets": {
+      "metadata_tags": ["8K_Resolution", "UE5_Render", "Organic_Expressionism", "Dark_Luxury_Brutalism"],
+      "technical_tags": ["CAD_Sculpt", "360_View", "Liquid_Canvas_Shader"],
+      "composition_tags": ["Dusk_Lighting", "Suburban_Cinematic", "Sketch_Overlay"]
+    },
+    "educational_modules": {
+      "curriculum_tags": ["Mastery_Level_Beginner", "Skill_Generative_AI", "Tool_UnrealEngine_5"],
+      "certification_tags": ["Gestalt_Certified", "Industry_Standard_CAD"]
+    },
+    "marketplace_logic": {
+      "transaction_tags": ["Auction_Eligible", "Secondary_Royalties", "Multi_Currency_Crypto"],
+      "license_types": ["Standard_Digital", "Commercial_Multiverse", "Physical_Print_Rights"]
+    }
+  }
+}
+
+2. CSV Mastery Taxonomy (Flat Structure)
+This is perfect for bulk-uploading products or courses into your platform.
+| Category | Sub-Category | Tag Name | Industry Purpose |
+|---|---|---|---|
+| Visual Identity | Style | Liquid_Canvas | Defines the "Aurora Gradient" UI/UX theme. |
+| Visual Identity | Typography | Syne_Expressive | Tag for all high-level display/brand headers. |
+| Tooling | AI Engine | Auto_Sculpt_CAD | Identifies assets created with your proprietary AI. |
+| Marketplace | Rights | Royalties_Active | Triggers the smart contract for artist payouts. |
+| Education | Progression | Milestone_4D_Motion | Requirement tag to unlock advanced animation courses. |
+| Environment | Lighting | Cinematic_Dusk | Used for the "Seamless Transition" scene logic. |
+3. What tagging should you use for the Studio?
+Since you are operating under Creative Minds Studios, you need "Institutional" tags that command authority in the tech and art space. Big players use a mix of Legal Status, Functional Role, and Specialization tags.
+A. The Legal/Corporate Suffix
+For a platform this ambitious (handling auctions, royalties, and education), you want to sound established:
+ * Creative Minds Studios, Inc.: Best if you plan to seek investment or scale globally. It sounds like a powerhouse.
+ * Creative Minds Studios & Co.: Gives a more "High-End Artisan" feel, fitting your "Dark Luxury Brutalism" vibe.
+ * The Gestalt Group: If you eventually branch out into different types of software or physical hardware.
+B. Internal Studio Department Tags (For your File System)
+When you save files or manage your team, use these industry-standard prefixes:
+ * [DEV]: For the CAD/AI engine backend.
+ * [UX/UI]: Specifically for the "Liquid Canvas" and "Syne/DM Sans" implementation.
+ * [IP]: For Intellectual Property (Characters like the Cyberpunk Child or Photorealistic Spirit).
+ * [EDU]: For the Certified Academy content.
+C. The "Signature" Metadata Tag
+Every file exported from your platform should have a Hardcoded Metadata Tag. This ensures that wherever the art goes, it is recognized as part of your ecosystem:
+ * Origin: Gestalt_Photosphere_Studio_v1
+ * Creator_Auth: [Artist_ID]
+ * Engine_Verify: UE5_Gestalt_Build
+Next Step
+Would you like me to generate a Product Schema specifically for your "360° CAD Viewing" feature so you can see how the 3D data and the marketplace tags live in the same file
+
+
+Ah, perfect—I’ve got it. Let’s refine that version and integrate every element you mentioned. Imagine a user stepping into a bespoke creative empire: their profile is a personal sanctuary, with fully adjustable backgrounds, layouts, and interactive galleries. As they move through a 3D, photospherical wonderland, the space responds—colors shift, ambient soundscapes evolve. Morphea AI guides them, ensuring every collaboration—up to six artists plus AI—stays ethical, with AI monitoring content flow. The gallery itself is a portal to opportunity: artists sell their work, and credits—100 credits equal $1—can be used or converted at any time. AI also monitors transactions, ensuring transparency, while a daily, weekly, and monthly competition structure propels them forward—top artists showcased on a leaderboard, earning a spot in the coveted yearly competition. Meanwhile, artists monetize not only their visuals but also educational videos—priced by the artist, monitored by AI to prevent exploitation. Music tracks also earn a certification—not by default, but by reaching key milestones—sales or wins—giving them a studio badge that elevates their stature. And all along, AI ensures that every interaction—whether buying, selling, or collaborating—flows in harmony, with parental controls ensuring minors are never exposed to explicit material. In this expansive creative ecosystem, every artist is empowered—to sell, to teach, to collaborate, and to grow—anchored in safety, guided by AI, and driven by limitless creative potential.
+
+#Photosphere-Ai
+
+Here is what I recommend adjusting or preparing first:
+1. Optimize Your Prompt Strategy
+Before switching to a different model or upgrading, refine your "Master Instructions." Large projects like Gestalt Photosphere can become "tangly" if the AI loses track of the global state.
+• Create a roadmap.md: If you haven't already, ask the AI to generate a markdown file in the project root that tracks finished features and pending tasks.
+• Modularize: Instead of asking for "the dashboard," ask for "the navigation sidebar component for the dashboard." This saves tokens and reduces errors.
+2. Check the "Context Window"
+As the project grows, the AI has to "read" more code every time you send a prompt.
+• Clean up: Delete any boilerplate files you aren't using (like default Vite assets).
+• Summarize: If you’re starting a new session, provide a brief summary of the current state of the Bolt Database schema so the AI doesn't try to reinvent your backend.
+3. Review the "Liquid Canvas" Logic
+Since you're aiming for a visionary design philosophy, ensure your tailwind.config.js or CSS variables are set up first. It’s much harder to inject a specific aesthetic like "Gestalt Photosphere" into 20 finished components than it is to set the theme globally at the start.
+4. Technical Housekeeping
+• Browser Support: The page note mentioned your current browser might have issues. If you aren't on a Chromium-based browser (Chrome or Edge), I’d suggest switching before you get deep into the WebGL or Canvas elements of your project, Web Containers that work best there.
+
+
+
+Imagine a user stepping into a bespoke creative empire: their profile is a personal sanctuary, with fully adjustable backgrounds, layouts, and interactive galleries. As they move through a 3D, photospherical wonderland, the space responds—colors shift, ambient soundscapes evolve. Morphea AI guides them, ensuring every collaboration—up to six artists plus AI—stays ethical, with AI monitoring content flow. The gallery itself is a portal to opportunity: artists sell their work, and credits—100 credits equal $1—can be used or converted at any time. AI also monitors transactions, ensuring transparency, while a daily, weekly, and monthly competition structure propels them forward—top artists showcased on a leaderboard, earning a spot in the coveted yearly competition. Meanwhile, artists monetize not only their visuals but also educational videos—priced by the artist, monitored by AI to prevent exploitation. Music tracks also earn a certification—not by default, but by reaching key milestones—sales or wins—giving them a studio badge that elevates their stature. And all along, AI ensures that every interaction—whether buying, selling, or collaborating—flows in harmony, with parental controls ensuring minors are never exposed to explicit material. In this expansive creative ecosystem, every artist is empowered—to sell, to teach, to collaborate, and to grow—anchored in safety, guided by AI, and driven by limitless creative potential
+
+
+* UI Aesthetic: Use dark mode backgrounds with vibrant, neon accent colors to create a modern, dynamic feel. Incorporate CSS gradients (radial and linear) to add depth and smooth transitions between colors.
+* Iconography: Leverage specialized asset packs like 100 Synthwave Icons (approx. $9) or Galaxy Crystal Style packs for meticulously designed, colorful icons that fit the futuristic theme.
+* Advanced Graphics: For the "Morphia AI morphing engine" or "360° Photosphere," you might integrate specialized tools like Leonardo AI, which uses image guidance to generate high-quality, stylistically consistent visuals.
+* Interactive Elements: Use tools like Figma Make to turn prompts into working prototypes, ensuring clarity and intuitive navigation even with high visual complexity. 
+
+
+Key App Functionalities to Include
+* Digital Marketplace: Enable users to sell AI-generated art and earn royalties.
+* Real USD Earnings: Integrate payment systems that convert in-app credits to live USD.
+* Security: Ensure PCI DSS Level 1encryption and 3D Secure two-factor authentication for financial transactions
+
+
+* UI Aesthetic: Use dark mode backgrounds with vibrant, neon accent colors to create a modern, dynamic feel. Incorporate CSS gradients (radial and linear) to add depth and smooth transitions between colors.
+* Iconography: Leverage specialized asset packs like 100 Synthwave Icons (approx. $9) or Galaxy Crystal Style packs for meticulously designed, colorful icons that fit the futuristic theme.
+* Advanced Graphics: For the "Morphia AI morphing engine" or "360° Photosphere," you might integrate specialized tools like Leonardo AI, which uses image guidance to generate high-quality, stylistically consistent visuals.
+* Interactive Elements: Use tools like Figma Make to turn prompts into working prototypes, ensuring clarity and intuitive navigation even with high visual complexity. 
+
+
+Key App Functionalities to Include
+* Digital Marketplace: Enable users to sell AI-generated art and earn royalties.
+* Real USD Earnings: Integrate payment systems that convert in-app credits to live USD.
+* Security: Ensure PCI DSS Level 1encryption and 3D Secure two-factor authentication for financial transactions
+
+
+
+gestalt-photosphere/
+
+mobile-app/
+ ├── App.js
+ ├── screens/
+ │   ├── HomeScreen.js
+ │   ├── MarketplaceScreen.js
+ │   ├── StudioScreen.js
+ │   ├── ProfileScreen.js
+ │   └── CompetitionScreen.js
+ │
+ ├── components/
+ │   ├── PhotosphereViewer.js
+ │   ├── LiquidCanvasBackground.js
+ │   ├── CreditWallet.js
+ │   └── ArtworkCard.js
+ │
+ ├── services/
+ │   ├── firebase.js
+ │   ├── payments.js
+ │   ├── aiEngine.js
+ │   └── competition.js
+ │
+ ├── styles/
+ │   └── liquidCanvas.js
+ │
+backend/
+ ├── server.js
+ ├── routes/
+ │   ├── marketplace.js
+ │   ├── users.js
+ │   ├── competitions.js
+ │
+ └── models/
+     ├── ArtAsset.js
+     └── User.js
+
+App.js
+
+
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+
+import HomeScreen from "./screens/HomeScreen";
+import StudioScreen from "./screens/StudioScreen";
+import MarketplaceScreen from "./screens/MarketplaceScreen";
+import ProfileScreen from "./screens/ProfileScreen";
+
+const Tab = createBottomTabNavigator();
+
+export default function App() {
+  return (
+    <NavigationContainer>
+      <Tab.Navigator screenOptions={{ headerShown: false }}>
+        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Studio" component={StudioScreen} />
+        <Tab.Screen name="Marketplace" component={MarketplaceScreen} />
+        <Tab.Screen name="Profile" component={ProfileScreen} />
+      </Tab.Navigator>
+    </NavigationContainer>
+  );
+}
+
+
+
+styles/liquidCanvas.js
+
+
+import { StyleSheet } from "react-native";
+
+export default StyleSheet.create({
+
+  container: {
+    flex: 1,
+    backgroundColor: "#05050a"
+  },
+
+  gradient: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    opacity: 0.8
+  },
+
+  neonText: {
+    color: "#00f7ff",
+    fontSize: 22,
+    textShadowColor: "#00f7ff",
+    textShadowRadius: 12
+  }
+
+});
+
+
+This creates your dark luxury brutalism + neon synthwave UI.
+
+
+
+Gestalt Photosphere is essentially a hybrid of:
+
+• Instagram
+• ArtStation
+• OpenSea
+• Unreal Engine
+
+But with AI + 4D photosphere art.
+
+That’s startup-level territory.
+
+• Full Gestalt Photosphere app UI screens (what every page looks like)
+• The Morphea AI personality system
+• The 360° “metaverse gallery” navigation engine
+
+
+
+Gestalt Photosphere is essentially a hybrid of:
+
+• Instagram
+• ArtStation
+• OpenSea
+• Unreal Engine
+
+But with AI + 4D photosphere art.
+
+That’s startup-level territory.
+
+• Full Gestalt Photosphere app UI screens (what every page looks like)
+• The Morphea AI personality system
+• The 360° “metaverse gallery” navigation engine
+
+
+services/payments.js
+
+
+
+import Stripe from "stripe";
+
+const stripe = new Stripe("STRIPE_SECRET_KEY");
+
+export async function withdrawCredits(userId, credits) {
+
+  const usd = credits / 100;
+
+  const payout = await stripe.payouts.create({
+    amount: usd * 100,
+    currency: "usd"
+  });
+
+  return payout;
+}
+
+
+services/competition.js
+
+
+
+export function calculateLeaderboardScore(views, sales, likes) {
+
+  return (
+    views * 0.1 +
+    likes * 0.5 +
+    sales * 10
+  );
+}
+
+
+Daily / Weekly / Yearly competitions run from this.
+
+
+
+backend/models/ArtAsset.js
+
+
+
+const mongoose = require("mongoose");
+
+const ArtAsset = new mongoose.Schema({
+
+  title: String,
+
+  creator: String,
+
+  tags: [String],
+
+  priceCredits: Number,
+
+  royaltyPercent: Number,
+
+  licenseType: String,
+
+  engine: {
+    type: String,
+    default: "UE5_Gestalt"
+  }
+
+});
+
+module.exports = mongoose.model("ArtAsset", ArtAsset);
+
+
+100 credits = $1
+
+components/CreditWallet.js
+
+
+
+export function convertCreditsToUSD(credits) {
+  return credits / 100;
+}
+
+export function convertUSDToCredits(usd) {
+  return usd * 100;
+}
+
+
+services/aiEngine.js
+
+
+export async function generateArtwork(prompt) {
+
+  const response = await fetch(
+    "https://api.leonardo.ai/generate",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        style: "cyberpunk_synthwave",
+        resolution: "8k"
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  return data.image;
+}
+
+
+This connects the AI art generation system.
+
+
+components/PhotosphereViewer.js
+
+
+import React, { useEffect } from "react";
+import { View } from "react-native";
+import * as THREE from "three";
+import { GLView } from "expo-gl";
+
+export default function PhotosphereViewer({ texture }) {
+
+  const onContextCreate = async (gl) => {
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      gl.drawingBufferWidth / gl.drawingBufferHeight,
+      0.1,
+      1000
+    );
+
+    const renderer = new THREE.WebGLRenderer({ gl });
+    renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    const geometry = new THREE.SphereGeometry(500, 60, 40);
+    geometry.scale(-1, 1, 1);
+
+    const loader = new THREE.TextureLoader();
+    const material = new THREE.MeshBasicMaterial({
+      map: loader.load(texture)
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    camera.position.set(0, 0, 0.1);
+
+    const render = () => {
+      requestAnimationFrame(render);
+      renderer.render(scene, camera);
+      gl.endFrameEXP();
+    };
+
+    render();
+  };
+
+  return <GLView style={{ flex: 1 }} onContextCreate={onContextCreate} />;
+}
+
+
+
+This enables 360° immersive galleries.
+
+
+
+styles/liquidCanvas.js
+
+
+import { StyleSheet } from "react-native";
+
+export default StyleSheet.create({
+
+  container: {
+    flex: 1,
+    backgroundColor: "#05050a"
+  },
+
+  gradient: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    opacity: 0.8
+  },
+
+  neonText: {
+    color: "#00f7ff",
+    fontSize: 22,
+    textShadowColor: "#00f7ff",
+    textShadowRadius: 12
+  }
+
+});
+
+
+This creates your dark luxury brutalism + neon synthwave UI. 
+services/competition.js
+
+
+
+export function calculateLeaderboardScore(views, sales, likes) {
+
+  return (
+    views * 0.1 +
+    likes * 0.5 +
+    sales * 10
+  );
+}
+
+
+Daily / Weekly / Yearly competitions run from this.
+
+
+
+backend/models/ArtAsset.js
+
+
+
+const mongoose = require("mongoose");
+
+const ArtAsset = new mongoose.Schema({
+
+  title: String,
+
+  creator: String,
+
+  tags: [String],
+
+  priceCredits: Number,
+
+  royaltyPercent: Number,
+
+  licenseType: String,
+
+  engine: {
+    type: String,
+    default: "UE5_Gestalt"
+  }
+
+});
+
+module.exports = mongoose.model("ArtAsset", ArtAsset);
+
+
+100 credits = $1
+
+components/CreditWallet.js
+
+
+
+export function convertCreditsToUSD(credits) {
+  return credits / 100;
+}
+
+export function convertUSDToCredits(usd) {
+  return usd * 100;
+}
+
+
+services/aiEngine.js
+
+
+export async function generateArtwork(prompt) {
+
+  const response = await fetch(
+    "https://api.leonardo.ai/generate",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        style: "cyberpunk_synthwave",
+        resolution: "8k"
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  return data.image;
+}
+
+
+This connects the AI art generation system.
+
+
+components/PhotosphereViewer.js
+
+
+import React, { useEffect } from "react";
+import { View } from "react-native";
+import * as THREE from "three";
+import { GLView } from "expo-gl";
+
+export default function PhotosphereViewer({ texture }) {
+
+  const onContextCreate = async (gl) => {
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      gl.drawingBufferWidth / gl.drawingBufferHeight,
+      0.1,
+      1000
+    );
+
+    const renderer = new THREE.WebGLRenderer({ gl });
+    renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    const geometry = new THREE.SphereGeometry(500, 60, 40);
+    geometry.scale(-1, 1, 1);
+
+    const loader = new THREE.TextureLoader();
+    const material = new THREE.MeshBasicMaterial({
+      map: loader.load(texture)
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    camera.position.set(0, 0, 0.1);
+
+    const render = () => {
+      requestAnimationFrame(render);
+      renderer.render(scene, camera);
+      gl.endFrameEXP();
+    };
+
+    render();
+  };
+
+  return <GLView style={{ flex: 1 }} onContextCreate={onContextCreate} />;
+}
+
+
+
+This enables 360° immersive galleries.
+
+
+
+styles/liquidCanvas.js
+
+
+import { StyleSheet } from "react-native";
+
+export default StyleSheet.create({
+
+  container: {
+    flex: 1,
+    backgroundColor: "#05050a"
+  },
+
+  gradient: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    opacity: 0.8
+  },
+
+  neonText: {
+    color: "#00f7ff",
+    fontSize: 22,
+    textShadowColor: "#00f7ff",
+    textShadowRadius: 12
+  }
+
+});
+
+
+This creates your dark luxury brutalism + neon synthwave UI.
+
+services/payments.js
+
+
+
+import Stripe from "stripe";
+
+const stripe = new Stripe("STRIPE_SECRET_KEY");
+
+export async function withdrawCredits(userId, credits) {
+
+  const usd = credits / 100;
+
+  const payout = await stripe.payouts.create({
+    amount: usd * 100,
+    currency: "usd"
+  });
+
+  return payout;
+}
+
+
+services/competition.js
+
+
+
+export function calculateLeaderboardScore(views, sales, likes) {
+
+  return (
+    views * 0.1 +
+    likes * 0.5 +
+    sales * 10
+  );
+}
+
+
+Daily / Weekly / Yearly competitions run from this.
+
+
+
+backend/models/ArtAsset.js
+
+
+
+const mongoose = require("mongoose");
+
+const ArtAsset = new mongoose.Schema({
+
+  title: String,
+
+  creator: String,
+
+  tags: [String],
+
+  priceCredits: Number,
+
+  royaltyPercent: Number,
+
+  licenseType: String,
+
+  engine: {
+    type: String,
+    default: "UE5_Gestalt"
+  }
+
+});
+
+module.exports = mongoose.model("ArtAsset", ArtAsset);
+
+
+100 credits = $1
+
+components/CreditWallet.js
+
+
+
+export function convertCreditsToUSD(credits) {
+  return credits / 100;
+}
+
+export function convertUSDToCredits(usd) {
+  return usd * 100;
+}
+
+
+services/aiEngine.js
+
+
+export async function generateArtwork(prompt) {
+
+  const response = await fetch(
+    "https://api.leonardo.ai/generate",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        style: "cyberpunk_synthwave",
+        resolution: "8k"
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  return data.image;
+}
+
+
+This connects the AI art generation system.
+
+
+components/PhotosphereViewer.js
+
+
+import React, { useEffect } from "react";
+import { View } from "react-native";
+import * as THREE from "three";
+import { GLView } from "expo-gl";
+
+export default function PhotosphereViewer({ texture }) {
+
+  const onContextCreate = async (gl) => {
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      gl.drawingBufferWidth / gl.drawingBufferHeight,
+      0.1,
+      1000
+    );
+
+    const renderer = new THREE.WebGLRenderer({ gl });
+    renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    const geometry = new THREE.SphereGeometry(500, 60, 40);
+    geometry.scale(-1, 1, 1);
+
+    const loader = new THREE.TextureLoader();
+    const material = new THREE.MeshBasicMaterial({
+      map: loader.load(texture)
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    camera.position.set(0, 0, 0.1);
+
+    const render = () => {
+      requestAnimationFrame(render);
+      renderer.render(scene, camera);
+      gl.endFrameEXP();
+    };
+
+    render();
+  };
+
+  return <GLView style={{ flex: 1 }} onContextCreate={onContextCreate} />;
+}
+
+
+
+This enables 360° immersive galleries.
+
+
+
+styles/liquidCanvas.js
+
+
+import { StyleSheet } from "react-native";
+
+export default StyleSheet.create({
+
+  container: {
+    flex: 1,
+    backgroundColor: "#05050a"
+  },
+
+  gradient: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    opacity: 0.8
+  },
+
+  neonText: {
+    color: "#00f7ff",
+    fontSize: 22,
+    textShadowColor: "#00f7ff",
+    textShadowRadius: 12
+  }
+
+});
+
+
+This creates your dark luxury brutalism + neon synthwave UI. 
+services/competition.js
+
+
+
+export function calculateLeaderboardScore(views, sales, likes) {
+
+  return (
+    views * 0.1 +
+    likes * 0.5 +
+    sales * 10
+  );
+}
+
+
+Daily / Weekly / Yearly competitions run from this.
+
+
+
+backend/models/ArtAsset.js
+
+
+
+const mongoose = require("mongoose");
+
+const ArtAsset = new mongoose.Schema({
+
+  title: String,
+
+  creator: String,
+
+  tags: [String],
+
+  priceCredits: Number,
+
+  royaltyPercent: Number,
+
+  licenseType: String,
+
+  engine: {
+    type: String,
+    default: "UE5_Gestalt"
+  }
+
+});
+
+module.exports = mongoose.model("ArtAsset", ArtAsset);
+
+
+100 credits = $1
+
+components/CreditWallet.js
+
+
+
+export function convertCreditsToUSD(credits) {
+  return credits / 100;
+}
+
+export function convertUSDToCredits(usd) {
+  return usd * 100;
+}
+
+
+services/aiEngine.js
+
+
+export async function generateArtwork(prompt) {
+
+  const response = await fetch(
+    "https://api.leonardo.ai/generate",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        style: "cyberpunk_synthwave",
+        resolution: "8k"
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  return data.image;
+}
+
+
+This connects the AI art generation system.
+
+
+components/PhotosphereViewer.js
+
+
+import React, { useEffect } from "react";
+import { View } from "react-native";
+import * as THREE from "three";
+import { GLView } from "expo-gl";
+
+export default function PhotosphereViewer({ texture }) {
+
+  const onContextCreate = async (gl) => {
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      gl.drawingBufferWidth / gl.drawingBufferHeight,
+      0.1,
+      1000
+    );
+
+    const renderer = new THREE.WebGLRenderer({ gl });
+    renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    const geometry = new THREE.SphereGeometry(500, 60, 40);
+    geometry.scale(-1, 1, 1);
+
+    const loader = new THREE.TextureLoader();
+    const material = new THREE.MeshBasicMaterial({
+      map: loader.load(texture)
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    camera.position.set(0, 0, 0.1);
+
+    const render = () => {
+      requestAnimationFrame(render);
+      renderer.render(scene, camera);
+      gl.endFrameEXP();
+    };
+
+    render();
+  };
+
+  return <GLView style={{ flex: 1 }} onContextCreate={onContextCreate} />;
+}
+
+
+
+This enables 360° immersive galleries.
+
+
+
+styles/liquidCanvas.js
+
+
+import { StyleSheet } from "react-native";
+
+export default StyleSheet.create({
+
+  container: {
+    flex: 1,
+    backgroundColor: "#05050a"
+  },
+
+  gradient: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    opacity: 0.8
+  },
+
+  neonText: {
+    color: "#00f7ff",
+    fontSize: 22,
+    textShadowColor: "#00f7ff",
+    textShadowRadius: 12
+  }
+
+});
+
+
+This creates your dark luxury brutalism + neon synthwave UI.
+
+A platform like this needs a relational knowledge graph, not just simple tables. Every artwork, lesson, competition entry, and marketplace listing must connect.
+
+Example global schema:
+
+
+
+{
+ "users": {
+   "user_id": "uuid",
+   "artist_name": "string",
+   "email": "string",
+   "wallet_credits": 0,
+   "verified_artist": true,
+   "certifications": ["gestalt_ai_level1"],
+   "portfolio_assets": ["asset_id"],
+   "courses_completed": ["course_id"]
+ },
+
+ "creative_assets": {
+   "asset_id": "uuid",
+   "title": "Cyberpunk Toy Car",
+   "creator_id": "user_id",
+   "engine": "UE5_GESTALT",
+   "resolution": "8K",
+   "type": "360_photosphere",
+   "tags": ["cyberpunk", "cinematic_dusk"],
+   "royalty_percent": 12,
+   "marketplace_status": "auction"
+ },
+
+ "marketplace_sales": {
+   "sale_id": "uuid",
+   "asset_id": "uuid",
+   "buyer_id": "uuid",
+   "credits_paid": 500,
+   "usd_value": 5,
+   "royalty_paid": 0.60
+ },
+
+ "competitions": {
+   "competition_id": "uuid",
+   "type": "monthly",
+   "entries": ["asset_id"],
+   "leaderboard": []
+ },
+
+ "academy_courses": {
+   "course_id": "uuid",
+   "title": "4D Motion Art",
+   "creator_id": "user_id",
+   "price_credits": 200,
+   "students": ["user_id"]
+ }
+}
+
+
+Every piece of art becomes a node in the Gestalt ecosystem.
+
+The database engines that scale well for this are:
+
+• MongoDB
+• Firebase
+• Neo4j (excellent for relationship graphs)
+
+
+
+Core AI Controller 
+
+
+class MorpheaAI {
+
+  analyzeArtwork(asset) {
+
+    const score =
+      asset.views * 0.1 +
+      asset.likes * 0.5 +
+      asset.sales * 8
+
+    return score
+  }
+
+  detectExplicitContent(text) {
+
+    const bannedWords = [
+      "explicit",
+      "violent",
+      "illegal"
+    ]
+
+    return bannedWords.some(word =>
+      text.toLowerCase().includes(word)
+    )
+  }
+
+  recommendAssets(user) {
+
+    return database.assets.filter(asset =>
+      asset.tags.includes(user.favoriteStyle)
+    )
+  }
+
+  verifyMilestone(asset) {
+
+    if(asset.sales > 100){
+      return "Studio Certified"
+    }
+
+    if(asset.sales > 500){
+      return "Master Creator"
+    }
+
+  }
+
+} 
+
+Morphea handles:
+
+• ethical collaboration monitoring
+• parental controls
+• asset recommendations
+• competition rankings
+• certification badges
+• AI art assistance
+
+This turns the platform into a self-evolving ecosystem.
+
+
+Core AI Controller 
+
+
+class MorpheaAI {
+
+  analyzeArtwork(asset) {
+
+    const score =
+      asset.views * 0.1 +
+      asset.likes * 0.5 +
+      asset.sales * 8
+
+    return score
+  }
+
+  detectExplicitContent(text) {
+
+    const bannedWords = [
+      "explicit",
+      "violent",
+      "illegal"
+    ]
+
+    return bannedWords.some(word =>
+      text.toLowerCase().includes(word)
+    )
+  }
+
+  recommendAssets(user) {
+
+    return database.assets.filter(asset =>
+      asset.tags.includes(user.favoriteStyle)
+    )
+  }
+
+  verifyMilestone(asset) {
+
+    if(asset.sales > 100){
+      return "Studio Certified"
+    }
+
+    if(asset.sales > 500){
+      return "Master Creator"
+    }
+
+  }
+
+} 
+
+Morphea handles:
+
+• ethical collaboration monitoring
+• parental controls
+• asset recommendations
+• competition rankings
+• certification badges
+• AI art assistance
+
+This turns the platform into a self-evolving ecosystem.
+
+
+Using WebGL + Three.js:
+
+
+
+
+import * as THREE from "three"
+
+const scene = new THREE.Scene()
+
+const camera = new THREE.PerspectiveCamera(
+75,
+window.innerWidth / window.innerHeight,
+0.1,
+1000
+)
+
+const renderer = new THREE.WebGLRenderer()
+
+renderer.setSize(
+window.innerWidth,
+window.innerHeight
+)
+
+document.body.appendChild(renderer.domElement)
+
+const geometry = new THREE.IcosahedronGeometry(3, 1)
+
+const material = new THREE.MeshStandardMaterial({
+ color: 0x00ffff,
+ wireframe: true
+})
+
+const mesh = new THREE.Mesh(geometry, material)
+
+scene.add(mesh)
+
+camera.position.z = 10
+
+function animate(){
+
+ requestAnimationFrame(animate)
+
+ mesh.rotation.x += 0.002
+ mesh.rotation.y += 0.003
+
+ renderer.render(scene, camera)
+
+}
+
+animate()
+
+This is the living background engine.
+
+Add:
+
+• particle nebula fields
+• morphing geometry
+• aurora gradients
+• physics-driven animations
+
+Now the UI becomes a cinematic environment, not just a screen.
+
+
+Your passive income system:
+
+
+function calculateRoyalty(price, percent){
+
+ return (price * percent) / 100
+
+}
+
+let royalty = calculateRoyalty(500, 12)
+
+If artwork sells for 500 credits:
+
+Artist earns 60 credits every resale.
+
+
+Daily → Weekly → Monthly → Yearly tournaments.
+
+
+
+function leaderboardScore(asset){
+
+ return (
+ asset.views * 0.2 +
+ asset.likes * 0.5 +
+ asset.sales * 15
+ )
+
+}
+
+
+Top artists automatically enter the yearly championship gallery.
+
+
+6. Security Layer
+
+Payments must use:
+
+• Stripe
+• PayPal
+• Ethereum (optional crypto)
+
+With:
+
+• PCI DSS Level 1
+• 3D Secure authentication
+• fraud detection
+
+Gestalt Photosphere: Revolutionize Your Creative Journey
+
+Discover the Future of Art Creation
+
+Gestalt Photosphere is your gateway to a visionary creative experience, where immersive aesthetics meet precision design. This innovative platform transforms digital interfaces into cinematic environments, blending sci-fi industrial futurism, organic digital expressionism, and dark luxury brutalism. Designed for serious creators, it offers a visually stunning, premium journey that makes creation intentional, tactile, and artful.
+
+Unleash Your Artistic Potential
+
+- Art Concept Editing Tools: Dive into hyper-detailed art creation using traditional mediums like acrylic and pen, rendered in stunning 8K resolution with Unreal Engine 5. Merge 2D, 3D, and 4D aesthetics into a cinematic, multiverse-inspired narrative.
+- Scene & Composition: Experience a seamless transition from light to dusk in a suburban setting, with a cityscape backdrop. The composition combines realistic rendering, sketch overlays, and surreal elements for immersive storytelling.
+- Character Design & Placement: Engage with a diverse cast, from a photorealistic spirit to a cyberpunk child and an athletic young woman, each adding depth and narrative tension to your artwork.
+* 
+Explore the Gestalt Photosphere Platform
+
+- Core Functions: Utilize AI-assisted creation, CAD auto-sculpting, animation, and generative visual editing. Seamlessly integrate music with your art and explore an art marketplace with royalties and auctions.
+- Design Philosophy: Embrace the “Liquid Canvas” visual identity with deep detail and depth, featuring aurora-inspired gradients and fantasy physics animations. Choose from expressive Syne typography and clear DM Sans for your projects.
+- Advanced Capabilities: Benefit from multi-payment options, social logins, a certified academy, real-time notifications, analytics, and full SEO integration for enhanced visibility.
+
+Transform Your Art Portfolio
+
+- Earn Passive Income: Showcase your work in digital art galleries and earn through paid memberships.
+- Compete & Earn: Participate in competitions for recognition and monetary rewards.
+- 360° CAD Viewing: Visualize your art designs in immersive 360° environments.
+- Education & Learning: Access a wide range of courses for skill development.
+- Community Engagement: Connect with fellow creators and enhance your visibility through AI-powered tools.
+- Free Usage: Enjoy unlimited access to core features, with optional extras available.
+* 
+* Download Gestalt Photosphere today and elevate your creative process with cutting-edge technology and a vibrant community. Transform your art portfolio and make a lasting impact in the world of digital art.
+
+By creative minds studios
+
+
+
+
+
+
+This is a high-level vision. You are blending Unreal Engine 5 aesthetics with CAD precision and Liquid Canvas design philosophy. To make a "Gestalt" (where the whole is greater than the sum of its parts) actually work, your data needs to be incredibly interconnected.
+Below are the Mastery Taxonomy templates. These are designed to link your Education (Academy), Marketplace (Royalties/Auctions), and Studio (Creation Tools) together.
+1. JSON Mastery Taxonomy (Relational Structure)
+This format is best for your developers or for setting up your NoSQL database (like MongoDB/Firebase). It shows how a single "Asset" connects to different parts of your ecosystem.
+{
+  "taxonomy_version": "1.0",
+  "studio_entity": "Creative Minds Studios",
+  "brand_identity": "Gestalt Photosphere",
+  "collections": {
+    "creative_assets": {
+      "metadata_tags": ["8K_Resolution", "UE5_Render", "Organic_Expressionism", "Dark_Luxury_Brutalism"],
+      "technical_tags": ["CAD_Sculpt", "360_View", "Liquid_Canvas_Shader"],
+      "composition_tags": ["Dusk_Lighting", "Suburban_Cinematic", "Sketch_Overlay"]
+    },
+    "educational_modules": {
+      "curriculum_tags": ["Mastery_Level_Beginner", "Skill_Generative_AI", "Tool_UnrealEngine_5"],
+      "certification_tags": ["Gestalt_Certified", "Industry_Standard_CAD"]
+    },
+    "marketplace_logic": {
+      "transaction_tags": ["Auction_Eligible", "Secondary_Royalties", "Multi_Currency_Crypto"],
+      "license_types": ["Standard_Digital", "Commercial_Multiverse", "Physical_Print_Rights"]
+    }
+  }
+}
+
+2. CSV Mastery Taxonomy (Flat Structure)
+This is perfect for bulk-uploading products or courses into your platform.
+| Category | Sub-Category | Tag Name | Industry Purpose |
+|---|---|---|---|
+| Visual Identity | Style | Liquid_Canvas | Defines the "Aurora Gradient" UI/UX theme. |
+| Visual Identity | Typography | Syne_Expressive | Tag for all high-level display/brand headers. |
+| Tooling | AI Engine | Auto_Sculpt_CAD | Identifies assets created with your proprietary AI. |
+| Marketplace | Rights | Royalties_Active | Triggers the smart contract for artist payouts. |
+| Education | Progression | Milestone_4D_Motion | Requirement tag to unlock advanced animation courses. |
+| Environment | Lighting | Cinematic_Dusk | Used for the "Seamless Transition" scene logic. |
+3. What tagging should you use for the Studio?
+Since you are operating under Creative Minds Studios, you need "Institutional" tags that command authority in the tech and art space. Big players use a mix of Legal Status, Functional Role, and Specialization tags.
+A. The Legal/Corporate Suffix
+For a platform this ambitious (handling auctions, royalties, and education), you want to sound established:
+ * Creative Minds Studios, Inc.: Best if you plan to seek investment or scale globally. It sounds like a powerhouse.
+ * Creative Minds Studios & Co.: Gives a more "High-End Artisan" feel, fitting your "Dark Luxury Brutalism" vibe.
+ * The Gestalt Group: If you eventually branch out into different types of software or physical hardware.
+B. Internal Studio Department Tags (For your File System)
+When you save files or manage your team, use these industry-standard prefixes:
+ * [DEV]: For the CAD/AI engine backend.
+ * [UX/UI]: Specifically for the "Liquid Canvas" and "Syne/DM Sans" implementation.
+ * [IP]: For Intellectual Property (Characters like the Cyberpunk Child or Photorealistic Spirit).
+ * [EDU]: For the Certified Academy content.
+C. The "Signature" Metadata Tag
+Every file exported from your platform should have a Hardcoded Metadata Tag. This ensures that wherever the art goes, it is recognized as part of your ecosystem:
+ * Origin: Gestalt_Photosphere_Studio_v1
+ * Creator_Auth: [Artist_ID]
+ * Engine_Verify: UE5_Gestalt_Build
+Next Step
+Would you like me to generate a Product Schema specifically for your "360° CAD Viewing" feature so you can see how the 3D data and the marketplace tags live in the same file
+
+#Photosphere-Ai
+
+
+
+I’ve matched the categories to your image: Premium Streetwear and Lo-Fi/Phonk music tracks.
+1. Populate the Shop (Clothing)
+Copy and paste this into the Supabase SQL Editor:
+
+INSERT INTO products (name, description, price, image_url, category)
+VALUES 
+('Cyber-Purple Hoodie', 'Heavy
+
+
+#Photosphere-Ai
+
+
+
+to generate the code, GitHub to store it, to power the backend and to turn it into an app 
+Here is the full technical setup and the master prompt to build the entire stack.
+Step 1: The Master "Vibe" Prompt for 
+Open and paste this. This prompt is engineered to build the frontend, connect the backend, and set up the specific "Neon/Glassmorphism" look from your image.
+> Prompt:
+> "Build a full-stack Next.js marketplace app with a Cyber-Noir aesthetic.
+> Design: Dark mode (#0A0A0A), neon purple/blue 1px borders with box-shadow glow, and glassmorphism cards (backdrop-blur).
+> Features: > 1. Music Player: A horizontal scroll section for music tracks with play/pause logic.
+> 2. Clothing Shop: A grid of product cards showing mockups (hoodies/tees).
+> 3. Backend: Integrate Supabase for Auth (login/signup) and Database.
+> 4. Database Schema: Create a 'products' table (id, name, price, image_url, category) and a 'tracks' table (id, title, artist, audio_url, cover_art).
+> Tech Stack: Use Tailwind CSS, Lucide React icons, and Framer Motion for smooth animations. Ensure the layout is mobile-optimized for a native app feel."
+> 
+Step 2: Connect the Plumbing (Supabase & GitHub)
+Once Bolt finishes the first draft, look at the top-right toolbar:
+ * Connect Supabase: Click the Supabase icon. Bolt will ask you to sign in. It will automatically create your tables and API keys. This keeps your database cost at $0.
+ * Sync to GitHub: Click the GitHub icon. Create a new repository named my-marketplace-app. This is crucial because Natively needs this link to build your app.
+Step 3: Natively App Configuration ($5/mo)
+Go to Natively and select the $5 Micro Plan.
+ * Import: Link your GitHub repository that you just created in Bolt.
+ * Native Features: In the Natively dashboard, toggle on "Background Audio" (so your music player works when the app is closed) and "Biometrics" (for FaceID checkout).
+ * Build: Click "Build App." Natively will take your Bolt.new code and package it into an .ipa (iOS) or .apk (Android) file.
+The Full-Stack Logic (Snippet)
+If Bolt asks for manual code help, here is the specific Tailwind + Glassmorphism CSS to give it that "expensive" look:
+// Example of the Neon Glass Card Component
+export const GlassCard = ({ children }) => (
+  <div className="bg-white/5 backdrop-blur-md border border-purple-500/30 rounded-2xl p-4 shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:border-purple-500/60 transition-all">
+    {children}
+  </div>
+);
+
+
+
+generate the SQL schema code so you can copy-paste it directly into GitHub 
+
+> Features: > 1. Music Player: A horizontal scroll section for music tracks with play/pause logic.
+> 2. - art gallery  showing mockups 
+> 3. Backend: Integrate for Auth (login/signup) and Database.
+> 4. Database Schema: Create a 'products' table (id, name, price, image_url, category) and a 'tracks' table (id, title, artist, audio_url, cover_art).
+> Tech Stack: Use Tailwind CSS, Lucide React icons, and Framer Motion for smooth animations. Ensure the layout is mobile-optimized for a feel."
+> 
+Step 2: Connect the Plumbing (GitHub)
+Once Bolt finishes the first draft, look at the top-right toolbar:
+ : Click the icon. Bolt will ask you to sign in. It will automatically create your tables and API keys. This keeps your database 
+ * Sync to GitHub: Click the GitHub icon. Create a new repository named my-marketplace-app. This is crucial because  needs this link to build your app.
+Go to and select the Micro Plan.
+ * Import:GitHub repository that you just created in 
+ , toggle on "Background Audio" (so your music player works when the app is closed) and "Biometrics" (for FaceID checkout).
+ * Build: Click  will take your  code and package it into an .ipa (iOS) or .apk (Android) file.
+The Full-Stack Logic (Snippet)
+If Bolt asks for manual code help, here is the specific Tailwind + Glassmorphism CSS to give it that "expensive" look:
+// Example of the Neon Glass Card Component
+export const GlassCard = ({ children }) => (
+  <div className="bg-white/5 backdrop-blur-md border border-purple-500/30 rounded-2xl p-4 shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:border-purple-500/60 transition-all">
+    {children}
+  </div>
+);
+
+<!-- 1. The Container for your Art Gallery -->
+<div id="wr360PlayerContainer" style="width:100%; height:600px; background-color: #eee;"></div>
+
+<!-- 2. Scripts for 360 Rotation -->
+<script src="https://cdn.webrotate360.com"></script>
+
+<script>
+  // INSERT YOUR CLOUDINARY CLOUD NAME HERE
+  const cloudName = "YOUR_CLOUD_NAME"; 
+  
+  // This function builds the 360 view
+  WR360.ImageRotator.Create('wr360PlayerContainer', {
+    licenseCode: 'YOUR_WEBROTATE_LICENSE_KEY', // Insert your key here
+    settings: {
+      configFileURL: `https://res.cloudinary.com{cloudName}/raw/upload/v1/360_assets/config.xml`,
+      graphicsPath: 'https://cdn.webrotate360.com',
+      autoPlay: true,
+      speed: 2,
+      // This allows the background to rotate with the object
+      rotatePeriod: 5000 
+    }
+  });
+</script>
+
+<style>
+  /* 3. CSS for the Rotating Background Effect */
+  #wr360PlayerContainer {
+    border: 2px solid #333;
+    border-radius: 15px;
+    overflow: hidden;
+    /* This makes the art "pop" against the background */
+    box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
+  }
+</style>
+
+
+
+1. Live Editing: Tell your AI builder to use Cloudinary’s URL API to change the art live. For example: https://res.cloudinary.com will instantly apply an artistic filter to your 360 frames.
+
+
+#Photosphere-Ai
+
+backend/services/morpheaAssistant.js
+
+class MorpheaAssistant {
+
+constructor(){
+
+this.personality = {
+name:"Morphea",
+tone:"visionary",
+role:"Creative AI Guide"
+}
+
+}
+
+greetUser(user){
+
+return `Welcome ${user.artistName}. Your creative sphere awaits.`
+
+}
+
+recommendTools(user){
+
+if(user.skillLevel === "beginner"){
+
+return [
+"AI Prompt Generator",
+"2D Studio",
+"Basic CAD Sculpt"
+]
+
+}
+
+return [
+"4D Motion Studio",
+"Photosphere Generator",
+"Advanced Animation"
+]
+
+}
+
+detectContentRisk(text){
+
+const banned=["explicit","illegal","violence"]
+
+return banned.some(word =>
+text.toLowerCase().includes(word)
+)
+
+}
+
+rankArtwork(asset){
+
+return (
+asset.views * 0.2 +
+asset.likes * 0.5 +
+asset.sales * 15
+)
+
+}
+
+}
+
+module.exports = new MorpheaAssistant()
+
+
+
+metaverse-engine/particleNebula.js
+
+
+import * as THREE from "three"
+
+export default function createNebula(scene){
+
+const geometry = new THREE.BufferGeometry()
+
+const vertices = []
+
+for(let i=0;i<10000;i++){
+
+vertices.push(
+(Math.random()-0.5)*2000,
+(Math.random()-0.5)*2000,
+(Math.random()-0.5)*2000
+)
+
+}
+
+geometry.setAttribute(
+"position",
+new THREE.Float32BufferAttribute(vertices,3)
+)
+
+const material = new THREE.PointsMaterial({
+
+color:0x6a00ff,
+size:2
+
+})
+
+const particles = new THREE.Points(
+geometry,
+material
+)
+
+scene.add(particles)
+
+}
+
+
+Build a full-stack 'Collaborative 4D Art Engine' with a persistent AI Synthetic Assistant. The UI must be a dark, glassmorphic 3D space with a pulsing neon-glow aesthetic.
+1. The 'Art Assistant Hand' Integration:
+* Create a dedicated AI Chat sidebar that acts as a 'second pair of hands.' It must have context-aware buttons for: 'Suggest Morph', 'Adjust 4D Glow', and 'Guess Next Step'.
+* Implement a '1-2-3 Hand Designing' feature: When an object is selected, the AI generates 3 visual previews. Clicking one triggers a smooth 4D animation to 'morph' the current model into that new state.
+2. 4D Interactive Environment:
+* Use React Three Fiberand @react-three/drei to create a 3D room where users can fly through and interact with floating objects (hoodies, accessories).
+* Morphing Engine:Objects must use vertex shaders or 'lerping' to transition between different shapes and textures proposed by the AI Assistant.
+3. Synthetic Collaboration:
+* The Assistant should suggest real-time 'Edits' or 'Additions' based on current scene composition.
+* Include an 'Environmental Reactive' system: The room’s neon glow should pulse or change color in sync with the Assistant's 'thinking' or 'generating' states.
+Tech Stack Requirements:
+* Frontend: React, Tailwind CSS, Three.js, Framer Motion 3D.
+* Backend: API routes for LLM integration (Claude/GPT-4) to handle 'guessing' logic.
+* State: Use Zustand to keep the 3D scene and AI chat perfectly synced."
+
+
+* Prompt Enhancement: Use the 'Enhance Prompt' button in the Bolt chatbox before running to add technical context for better 3D code generation.
+* Debugging: If the 3D scene has errors, copy the console log from the preview directly back into the chat. Bolt is designed to automatically fix errors it generates.
+* Visual Magic: To get the best "fire" look, mention specific keywords like 'glassmorphism', 'neon shaders', and 'interactive backgrounds'.
+* Deployment: You can instantly publish to a live URL using the 'Publish' button once the 4D environment is stable
+
+
+
+
+import { create } from 'zustand';
+
+const useArtEngineStore = create((set) => ({
+  // 3D Scene State
+  currentModel: 'base_hoodie', 
+  targetMorph: null, // Stores the vertex data for the next state
+  isMorphing: false,
+  
+  // AI Assistant State
+  assistantStatus: 'idle', // 'idle' | 'thinking' | 'generating'
+  aiPreviews: [], // Array of 3 visual preview states (1-2-3 Hand Designing)
+  
+  // Actions
+  setAssistantStatus: (status) => set({ assistantStatus: status }),
+  
+  setPreviews: (previews) => set({ aiPreviews: previews }),
+  
+  triggerMorph: (newTarget) => set({ 
+    targetMorph: newTarget, 
+    isMorphing: true,
+    assistantStatus: 'idle' 
+  }),
+  
+  completeMorph: () => set({ isMorphing: false })
+}));
+
+
+
+
+// vertexShader.glsl
+uniform float uProgress; // 0.0 to 1.0 transition
+uniform float uTime;
+varying vec2 vUv;
+
+attribute vec3 positionA; // Current state
+attribute vec3 positionB; // AI-suggested target state
+
+void main() {
+  vUv = uv;
+  
+  // 1. Linear interpolation between two 3D states (the "4D" transition)
+  vec3 morphedPosition = mix(positionA, positionB, uProgress);
+  
+  // 2. Add 'Synthetic Pulse' displacement based on AI status
+  float pulse = sin(uTime * 2.0) * 0.1 * uProgress;
+  morphedPosition += normal * pulse;
+
+  vec4 modelPosition = modelMatrix * vec4(morphedPosition, 1.0);
+  gl_Position = projectionMatrix * viewMatrix * modelPosition;
+}
+
