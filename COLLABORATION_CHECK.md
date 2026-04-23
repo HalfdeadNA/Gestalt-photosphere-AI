@@ -1,0 +1,1 @@
+Collaborator access confirmed through trippy2283. This file was created to verify direct repository writes before continuing the EvaOne.AI visual rebuild.
