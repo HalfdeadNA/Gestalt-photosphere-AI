@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "EvaOne.AI",
+    "slug": "evaone-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#050816"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#050816"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
