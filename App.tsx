@@ -6,577 +6,1038 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 
-type TabKey = 'dashboard' | 'projects' | 'tasks' | 'prompts' | 'notes' | 'activity' | 'settings';
-type Status = 'open' | 'done';
+type MainTab = 'home' | 'studio' | 'museum' | 'market' | 'academy' | 'more';
+type MoreScreen =
+  | 'projects'
+  | 'galleryBuilder'
+  | 'competitions'
+  | 'creatorDashboard'
+  | 'creationLog'
+  | 'creativeMemory'
+  | 'controlCenter'
+  | 'assistant';
 
-type ProjectRow = {
-  id: number;
+type ProjectStatus = 'Idea' | 'Draft' | 'In Progress' | 'Ready to Publish' | 'Listed' | 'Archived';
+type ListingStatus = 'Draft Mode' | 'Ready for Review';
+
+type CreativeProject = {
+  id: string;
+  title: string;
+  type: string;
+  status: ProjectStatus;
+  description: string;
+  prompt: string;
+  enhancedPrompt: string;
+  style: string;
+  dimensionMode: string;
+  notes: string;
+  assets: string;
+  marketplaceStatus: string;
+  galleryStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type MuseumRoom = {
+  id: string;
   name: string;
-  summary: string;
-  status: Status;
-  created_at: string;
-  updated_at: string;
+  theme: string;
+  wallSurface: string;
+  ceilingSurface: string;
+  floorSurface: string;
+  doorwaySurface: string;
+  artworkIds: string;
+  curatorNote: string;
+  createdAt: string;
 };
 
-type TaskRow = {
-  id: number;
+type Gallery = {
+  id: string;
   title: string;
-  detail: string;
-  project_name: string;
-  status: Status;
-  created_at: string;
-  updated_at: string;
+  description: string;
+  theme: string;
+  projectIds: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
-type PromptRow = {
-  id: number;
+type MarketplaceListing = {
+  id: string;
+  projectId: string;
   title: string;
+  description: string;
+  price: number;
+  licenseType: string;
+  royaltyPercent: number;
   category: string;
-  body: string;
-  created_at: string;
-  updated_at: string;
+  tags: string;
+  status: ListingStatus;
+  createdAt: string;
 };
 
-type NoteRow = {
-  id: number;
+type AcademyCourse = {
+  id: string;
   title: string;
-  body: string;
-  created_at: string;
-  updated_at: string;
+  description: string;
+  category: string;
+  lessons: string;
+  progress: number;
 };
 
-type LogRow = {
-  id: number;
-  entry: string;
-  kind: string;
-  created_at: string;
+type CompetitionEntry = {
+  id: string;
+  competitionType: string;
+  projectId: string;
+  title: string;
+  status: string;
+  prizeField: string;
+  judgingCriteria: string;
+  submittedAt: string;
 };
 
-const dbName = 'evaone_ai_layer1.db';
+type CreationLog = {
+  id: string;
+  type: string;
+  message: string;
+  relatedId: string;
+  createdAt: string;
+};
+
+type CreativeMemory = {
+  id: string;
+  memKey: string;
+  value: string;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type CreativeBrief = {
+  title: string;
+  enhancedPrompt: string;
+  styleDirection: string;
+  dimensionMode: string;
+  museumPlacement: string;
+  listingDescription: string;
+  tags: string[];
+  nextSteps: string[];
+};
+
+const dbName = 'gestalt_visions.db';
 
 const palette = {
-  bg: '#050816',
-  panel: '#0B1020',
-  panelAlt: '#111827',
-  border: 'rgba(124, 58, 237, 0.28)',
-  text: '#EAF2FF',
-  muted: '#97A6C7',
-  cyan: '#06B6D4',
-  violet: '#7C3AED',
-  green: '#22C55E',
-  amber: '#F59E0B',
-  danger: '#FB7185',
+  bg: '#060915',
+  panel: 'rgba(18, 25, 44, 0.82)',
+  panelSolid: '#0e1528',
+  border: 'rgba(83, 202, 255, 0.28)',
+  text: '#EBF7FF',
+  muted: '#9FB1D6',
+  cyan: '#3BE7FF',
+  violet: '#9B5CFF',
+  aurora: '#F774FF',
+  green: '#3EE58C',
+  amber: '#F6C45F',
+  danger: '#FF6D7E',
 };
 
-function now() {
-  return new Date().toISOString();
-}
+const roomThemes = ['Liquid Canvas', 'Neon Museum', 'Aurora Glass', 'Synthwave Reality', 'Dark Luxury'];
+const surfaces = [
+  'obsidian wall',
+  'neon grid ceiling',
+  'deep ocean floor',
+  'crystal doorway',
+  'white cube',
+  'aurora glass',
+  'liquid canvas',
+  'chrome void',
+  'cosmic archive',
+  'gothic synthwave',
+];
+const galleryThemes = [
+  'Liquid Canvas',
+  'Neon Museum',
+  'Dark Luxury',
+  'White Cube',
+  'Corpse Bride Gothic',
+  'Synthwave Reality',
+  'Aurora Glass',
+  'Cyber Ritual',
+  'Minimal Founder Deck',
+  'Experimental Spatial CMS',
+];
+const licenseTypes = [
+  'Personal Use',
+  'Commercial Use',
+  'Exclusive Sale',
+  'Lease with Royalties',
+  'Gallery Display License',
+  'Educational Use',
+];
+const competitionTypes = ['Daily Spark', 'Weekly Battle', 'Monthly Gauntlet', 'Yearly Gala'];
 
-function formatDate(iso: string) {
-  const date = new Date(iso);
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-}
+const aiProvider = {
+  name: 'LocalCreativeProvider',
+  isConnected: false,
+  generateCreativeBrief(prompt: string, style = 'Cinematic Neon'): CreativeBrief {
+    const p = prompt.trim() || 'Immersive creative concept';
+    const lc = p.toLowerCase();
+    const gothic = lc.includes('gothic');
+    const museumPlacement = lc.includes('museum') ? 'Neon Atrium' : 'The Liquid Canvas Hall';
+    const mode = lc.includes('3d') || lc.includes('room') ? '3D/XVR' : '2D/Concept';
+    return {
+      title: gothic ? 'Gothic Neon Reliquary' : `Gestalt ${p.split(' ').slice(0, 3).join(' ')}`,
+      enhancedPrompt:
+        gothic
+          ? 'A dark immersive museum chamber with gothic arches, neon cyan and violet rim lighting, reflective obsidian floor, floating digital canvases, soft fog, and cinematic depth.'
+          : `Create a premium immersive scene for: ${p}. Use layered lighting, reflective materials, narrative composition, and museum-grade atmosphere.`,
+      styleDirection: gothic ? 'Corpse Bride Gothic + Synthwave Reality' : `${style} + Aurora Glass`,
+      dimensionMode: mode,
+      museumPlacement,
+      listingDescription: `Creative brief prepared for “${p}”. This concept is structured for gallery deployment and marketplace-ready storytelling copy.`,
+      tags: gothic ? ['gothic', 'neon', 'immersive', 'digital museum', 'synthwave'] : ['creative', 'immersive', 'gallery', 'ai-assisted', 'gestalt'],
+      nextSteps: ['Save as project', 'Add to museum room', 'Create gallery draft', 'Prepare marketplace listing'],
+    };
+  },
+};
 
-function normalize(input: string) {
-  return input.trim().replace(/\s+/g, ' ');
-}
+const now = () => new Date().toISOString();
+const id = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const parseIds = (value: string) => value.split(',').map((part) => part.trim()).filter(Boolean);
 
 export default function App() {
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [booting, setBooting] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
+  const [activeTab, setActiveTab] = useState<MainTab>('home');
+  const [moreScreen, setMoreScreen] = useState<MoreScreen>('projects');
 
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [prompts, setPrompts] = useState<PromptRow[]>([]);
-  const [notes, setNotes] = useState<NoteRow[]>([]);
-  const [logs, setLogs] = useState<LogRow[]>([]);
+  const [projects, setProjects] = useState<CreativeProject[]>([]);
+  const [rooms, setRooms] = useState<MuseumRoom[]>([]);
+  const [galleries, setGalleries] = useState<Gallery[]>([]);
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
+  const [courses, setCourses] = useState<AcademyCourse[]>([]);
+  const [entries, setEntries] = useState<CompetitionEntry[]>([]);
+  const [logs, setLogs] = useState<CreationLog[]>([]);
+  const [memory, setMemory] = useState<CreativeMemory[]>([]);
+  const [settings, setSettings] = useState<Record<string, string>>({});
 
-  const [projectName, setProjectName] = useState('');
-  const [projectSummary, setProjectSummary] = useState('');
-  const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectPrompt, setProjectPrompt] = useState('');
+  const [projectStyle, setProjectStyle] = useState('Cinematic Neon');
+  const [projectType, setProjectType] = useState('2D image concept');
+  const [projectDim, setProjectDim] = useState('2D');
+  const [brief, setBrief] = useState<CreativeBrief | null>(null);
 
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskDetail, setTaskDetail] = useState('');
-  const [taskProject, setTaskProject] = useState('');
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [roomName, setRoomName] = useState('');
+  const [roomTheme, setRoomTheme] = useState(roomThemes[0]);
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [roomArtworkId, setRoomArtworkId] = useState('');
 
-  const [promptTitle, setPromptTitle] = useState('');
-  const [promptCategory, setPromptCategory] = useState('General');
-  const [promptBody, setPromptBody] = useState('');
-  const [promptSearch, setPromptSearch] = useState('');
-  const [editingPromptId, setEditingPromptId] = useState<number | null>(null);
+  const [galleryTitle, setGalleryTitle] = useState('');
+  const [galleryDescription, setGalleryDescription] = useState('');
+  const [galleryTheme, setGalleryTheme] = useState(galleryThemes[0]);
+  const [galleryProjectId, setGalleryProjectId] = useState('');
 
-  const [noteTitle, setNoteTitle] = useState('');
-  const [noteBody, setNoteBody] = useState('');
-  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [listingProjectId, setListingProjectId] = useState('');
+  const [listingTitle, setListingTitle] = useState('');
+  const [listingDescription, setListingDescription] = useState('');
+  const [listingPrice, setListingPrice] = useState('120');
+  const [listingLicense, setListingLicense] = useState(licenseTypes[1]);
 
-  const [focusMode, setFocusMode] = useState(true);
-  const [connectorReady, setConnectorReady] = useState(false);
+  const [memoryKey, setMemoryKey] = useState('');
+  const [memoryValue, setMemoryValue] = useState('');
+  const [memoryCategory, setMemoryCategory] = useState('style');
 
-  const openTasks = useMemo(() => tasks.filter((task) => task.status === 'open'), [tasks]);
-  const doneTasks = useMemo(() => tasks.filter((task) => task.status === 'done'), [tasks]);
-  const activeProjects = useMemo(() => projects.filter((project) => project.status === 'open'), [projects]);
-  const filteredPrompts = useMemo(() => {
-    const query = promptSearch.trim().toLowerCase();
-    if (!query) return prompts;
-    return prompts.filter((prompt) =>
-      `${prompt.title} ${prompt.category} ${prompt.body}`.toLowerCase().includes(query)
-    );
-  }, [promptSearch, prompts]);
+  const [assistantInput, setAssistantInput] = useState('');
+  const [assistantOutput, setAssistantOutput] = useState('');
 
-  const log = useCallback(async (entry: string, kind = 'system') => {
+  const [jsonBuffer, setJsonBuffer] = useState('');
+
+  const activeProjects = useMemo(() => projects.filter((p) => p.status !== 'Archived').length, [projects]);
+
+  const logEvent = useCallback(async (type: string, message: string, relatedId = '') => {
     if (!db) return;
-    await db.runAsync('INSERT INTO activity_logs (entry, kind, created_at) VALUES (?, ?, ?)', entry, kind, now());
+    await db.runAsync('INSERT INTO creation_logs (id, type, message, relatedId, createdAt) VALUES (?, ?, ?, ?, ?)', id(), type, message, relatedId, now());
   }, [db]);
 
-  const refreshAll = useCallback(async () => {
+  const refresh = useCallback(async () => {
     if (!db) return;
-    const projectRows = await db.getAllAsync<ProjectRow>('SELECT * FROM projects ORDER BY id DESC');
-    const taskRows = await db.getAllAsync<TaskRow>('SELECT * FROM tasks ORDER BY id DESC');
-    const promptRows = await db.getAllAsync<PromptRow>('SELECT * FROM prompts ORDER BY id DESC');
-    const noteRows = await db.getAllAsync<NoteRow>('SELECT * FROM notes ORDER BY id DESC');
-    const logRows = await db.getAllAsync<LogRow>('SELECT * FROM activity_logs ORDER BY id DESC LIMIT 60');
-    const prefRows = await db.getAllAsync<{ pref_key: string; pref_value: string }>('SELECT * FROM preferences');
-
-    const prefMap = new Map(prefRows.map((row) => [row.pref_key, row.pref_value]));
-    setProjects(projectRows);
-    setTasks(taskRows);
-    setPrompts(promptRows);
-    setNotes(noteRows);
-    setLogs(logRows);
-    setFocusMode(prefMap.get('focusMode') !== 'false');
-    setConnectorReady(prefMap.get('connectorReady') === 'true');
+    setProjects(await db.getAllAsync<CreativeProject>('SELECT * FROM creative_projects ORDER BY updatedAt DESC'));
+    setRooms(await db.getAllAsync<MuseumRoom>('SELECT * FROM museum_rooms ORDER BY createdAt DESC'));
+    setGalleries(await db.getAllAsync<Gallery>('SELECT * FROM galleries ORDER BY updatedAt DESC'));
+    setListings(await db.getAllAsync<MarketplaceListing>('SELECT * FROM marketplace_listings ORDER BY createdAt DESC'));
+    setCourses(await db.getAllAsync<AcademyCourse>('SELECT * FROM academy_courses ORDER BY title ASC'));
+    setEntries(await db.getAllAsync<CompetitionEntry>('SELECT * FROM competition_entries ORDER BY submittedAt DESC'));
+    setLogs(await db.getAllAsync<CreationLog>('SELECT * FROM creation_logs ORDER BY createdAt DESC LIMIT 80'));
+    setMemory(await db.getAllAsync<CreativeMemory>('SELECT * FROM creative_memory ORDER BY updatedAt DESC'));
+    const prefRows = await db.getAllAsync<{ prefKey: string; prefValue: string }>('SELECT * FROM control_center');
+    setSettings(Object.fromEntries(prefRows.map((row) => [row.prefKey, row.prefValue])));
   }, [db]);
 
-  const bootstrap = useCallback(async () => {
-    const database = await SQLite.openDatabaseAsync(dbName);
-    await database.execAsync(`
-      PRAGMA journal_mode = WAL;
-      CREATE TABLE IF NOT EXISTS projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        summary TEXT NOT NULL DEFAULT '',
-        status TEXT NOT NULL DEFAULT 'open',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+  const seedDefaults = useCallback(async (database: SQLite.SQLiteDatabase) => {
+    const count = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM creative_projects');
+    if ((count?.count ?? 0) > 0) return;
+
+    const seedProjects: Omit<CreativeProject, 'updatedAt'>[] = [
+      { id: id(), title: 'Liquid Canvas Artifact', type: '3D artifact concept', status: 'Draft', description: 'Reflective sculptural relic for immersive hall.', prompt: 'Liquid canvas artifact with cinematic rim light', enhancedPrompt: 'Cinematic relic floating in liquid-canvas chamber.', style: 'Liquid Canvas', dimensionMode: '3D/XVR', notes: 'Use obsidian floor reflections.', assets: 'none', marketplaceStatus: 'Not listed', galleryStatus: 'Not added', createdAt: now() },
+      { id: id(), title: 'Neon Museum Entrance', type: 'museum installation', status: 'In Progress', description: 'Hero entrance with neon arches.', prompt: 'Futuristic neon museum entry portal', enhancedPrompt: 'Grand neon atrium gateway with cyan-violet lines.', style: 'Neon Museum', dimensionMode: '3D/XVR', notes: 'Add fog pass.', assets: 'none', marketplaceStatus: 'Not listed', galleryStatus: 'In room', createdAt: now() },
+      { id: id(), title: 'Aurora Glass Gallery', type: 'immersive gallery room', status: 'Draft', description: 'Glass-prism ambient room with aurora highlights.', prompt: 'Aurora glass immersive room', enhancedPrompt: 'Prismatic gallery room with aurora reflections.', style: 'Aurora Glass', dimensionMode: '3D/XVR', notes: 'Great for abstract sets.', assets: 'none', marketplaceStatus: 'Draft', galleryStatus: 'In gallery', createdAt: now() },
+      { id: id(), title: 'Gothic Synthwave Portrait', type: '2D image concept', status: 'Ready to Publish', description: 'Dark portrait with synthwave palette.', prompt: 'Gothic neon portrait with dramatic lighting', enhancedPrompt: 'Portrait with gothic silhouettes and synthwave color contrast.', style: 'Corpse Bride Gothic + Synthwave Reality', dimensionMode: '2D', notes: 'Ready for listing.', assets: 'none', marketplaceStatus: 'Draft', galleryStatus: 'In room', createdAt: now() },
+      { id: id(), title: 'Spatial CMS Demo Room', type: 'photosphere scene', status: 'Idea', description: 'Demo environment for modular layout.', prompt: 'Spatial CMS inspired modular creative room', enhancedPrompt: 'Modular nodes and floating UI in a cinematic room.', style: 'Experimental Spatial CMS', dimensionMode: '3D/XVR', notes: 'Use for pitch.', assets: 'none', marketplaceStatus: 'Not listed', galleryStatus: 'Not added', createdAt: now() },
+    ];
+
+    for (const project of seedProjects) {
+      await database.runAsync(
+        `INSERT INTO creative_projects (id, title, type, status, description, prompt, enhancedPrompt, style, dimensionMode, notes, assets, marketplaceStatus, galleryStatus, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        project.id,
+        project.title,
+        project.type,
+        project.status,
+        project.description,
+        project.prompt,
+        project.enhancedPrompt,
+        project.style,
+        project.dimensionMode,
+        project.notes,
+        project.assets,
+        project.marketplaceStatus,
+        project.galleryStatus,
+        project.createdAt,
+        project.createdAt
       );
-      CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        detail TEXT NOT NULL DEFAULT '',
-        project_name TEXT NOT NULL DEFAULT '',
-        status TEXT NOT NULL DEFAULT 'open',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+    }
+
+    const roomSeeds: MuseumRoom[] = [
+      { id: id(), name: 'The Liquid Canvas Hall', theme: 'Liquid Canvas', wallSurface: 'liquid canvas', ceilingSurface: 'neon grid ceiling', floorSurface: 'obsidian wall', doorwaySurface: 'crystal doorway', artworkIds: '', curatorNote: 'Flow-state textures and reflective stories.', createdAt: now() },
+      { id: id(), name: 'The Neon Atrium', theme: 'Neon Museum', wallSurface: 'obsidian wall', ceilingSurface: 'neon grid ceiling', floorSurface: 'chrome void', doorwaySurface: 'aurora glass', artworkIds: '', curatorNote: 'Best for cyber-futurist narratives.', createdAt: now() },
+      { id: id(), name: 'The Aurora Archive', theme: 'Aurora Glass', wallSurface: 'aurora glass', ceilingSurface: 'cosmic archive', floorSurface: 'deep ocean floor', doorwaySurface: 'white cube', artworkIds: '', curatorNote: 'Showcases premium prismatic collections.', createdAt: now() },
+    ];
+    for (const room of roomSeeds) {
+      await database.runAsync(
+        'INSERT INTO museum_rooms (id, name, theme, wallSurface, ceilingSurface, floorSurface, doorwaySurface, artworkIds, curatorNote, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        room.id,
+        room.name,
+        room.theme,
+        room.wallSurface,
+        room.ceilingSurface,
+        room.floorSurface,
+        room.doorwaySurface,
+        room.artworkIds,
+        room.curatorNote,
+        room.createdAt
       );
-      CREATE TABLE IF NOT EXISTS prompts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        category TEXT NOT NULL DEFAULT 'General',
-        body TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+    }
+
+    const courseSeeds: AcademyCourse[] = [
+      { id: id(), title: 'AI Art Basics', description: 'Foundations for modern creator workflows.', category: 'AI Art Basics', lessons: 'Prompt inputs, style control, outputs', progress: 15 },
+      { id: id(), title: 'Prompt Craft for Visual Creators', description: 'Structure prompts for premium results.', category: 'Prompt Craft', lessons: 'Intent, constraints, mood, detail', progress: 0 },
+      { id: id(), title: 'Building Your First Immersive Gallery', description: 'From project to gallery publishing flow.', category: 'Building Immersive Galleries', lessons: 'Room design, curation, sequencing', progress: 30 },
+      { id: id(), title: 'Marketplace Listing Strategy', description: 'Positioning, copy, licensing and royalties.', category: 'Marketplace Selling', lessons: 'Pricing, tags, trust signals', progress: 40 },
+      { id: id(), title: 'Creative Business Foundations', description: 'Monetization and repeatable creator systems.', category: 'Creative Business', lessons: 'Offers, packages, client value', progress: 5 },
+    ];
+
+    for (const c of courseSeeds) {
+      await database.runAsync(
+        'INSERT INTO academy_courses (id, title, description, category, lessons, progress) VALUES (?, ?, ?, ?, ?, ?)',
+        c.id,
+        c.title,
+        c.description,
+        c.category,
+        c.lessons,
+        c.progress
       );
-      CREATE TABLE IF NOT EXISTS notes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        body TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+    }
+
+    for (const c of competitionTypes) {
+      await database.runAsync(
+        'INSERT INTO competition_entries (id, competitionType, projectId, title, status, prizeField, judgingCriteria, submittedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        id(),
+        c,
+        '',
+        `${c} Example`,
+        'Open',
+        c === 'Yearly Gala' ? '1500 Credits' : '100 Credits',
+        'Originality, narrative, craft quality',
+        now()
       );
-      CREATE TABLE IF NOT EXISTS activity_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        entry TEXT NOT NULL,
-        kind TEXT NOT NULL DEFAULT 'system',
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS preferences (
-        pref_key TEXT PRIMARY KEY NOT NULL,
-        pref_value TEXT NOT NULL
-      );
-    `);
-    setDb(database);
+    }
+
+    await database.runAsync('INSERT INTO control_center (prefKey, prefValue) VALUES (?, ?)', 'aiAccess', 'enabled');
+    await database.runAsync('INSERT INTO control_center (prefKey, prefValue) VALUES (?, ?)', 'memoryMode', 'editable');
+    await database.runAsync('INSERT INTO control_center (prefKey, prefValue) VALUES (?, ?)', 'marketplacePermissions', 'draft-only');
+    await database.runAsync('INSERT INTO creation_logs (id, type, message, relatedId, createdAt) VALUES (?, ?, ?, ?, ?)', id(), 'system', 'Gestalt Visions initialized with starter content.', '', now());
   }, []);
 
   useEffect(() => {
-    bootstrap().catch((error) => Alert.alert('Startup error', error.message));
-  }, [bootstrap]);
+    const boot = async () => {
+      const database = await SQLite.openDatabaseAsync(dbName);
+      await database.execAsync(`
+        PRAGMA journal_mode = WAL;
+        CREATE TABLE IF NOT EXISTS creative_projects (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          description TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          enhancedPrompt TEXT NOT NULL,
+          style TEXT NOT NULL,
+          dimensionMode TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          assets TEXT NOT NULL,
+          marketplaceStatus TEXT NOT NULL,
+          galleryStatus TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS museum_rooms (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          theme TEXT NOT NULL,
+          wallSurface TEXT NOT NULL,
+          ceilingSurface TEXT NOT NULL,
+          floorSurface TEXT NOT NULL,
+          doorwaySurface TEXT NOT NULL,
+          artworkIds TEXT NOT NULL,
+          curatorNote TEXT NOT NULL,
+          createdAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS galleries (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          theme TEXT NOT NULL,
+          projectIds TEXT NOT NULL,
+          status TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS marketplace_listings (
+          id TEXT PRIMARY KEY NOT NULL,
+          projectId TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          price REAL NOT NULL,
+          licenseType TEXT NOT NULL,
+          royaltyPercent INTEGER NOT NULL,
+          category TEXT NOT NULL,
+          tags TEXT NOT NULL,
+          status TEXT NOT NULL,
+          createdAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS academy_courses (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          category TEXT NOT NULL,
+          lessons TEXT NOT NULL,
+          progress INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS competition_entries (
+          id TEXT PRIMARY KEY NOT NULL,
+          competitionType TEXT NOT NULL,
+          projectId TEXT NOT NULL,
+          title TEXT NOT NULL,
+          status TEXT NOT NULL,
+          prizeField TEXT NOT NULL,
+          judgingCriteria TEXT NOT NULL,
+          submittedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS creation_logs (
+          id TEXT PRIMARY KEY NOT NULL,
+          type TEXT NOT NULL,
+          message TEXT NOT NULL,
+          relatedId TEXT NOT NULL,
+          createdAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS creative_memory (
+          id TEXT PRIMARY KEY NOT NULL,
+          memKey TEXT NOT NULL,
+          value TEXT NOT NULL,
+          category TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS control_center (
+          prefKey TEXT PRIMARY KEY NOT NULL,
+          prefValue TEXT NOT NULL
+        );
+      `);
+      await seedDefaults(database);
+      setDb(database);
+    };
+    boot().catch((e) => Alert.alert('Startup Error', e.message));
+  }, [seedDefaults]);
 
   useEffect(() => {
     if (!db) return;
-    refreshAll()
-      .catch((error) => Alert.alert('Load error', error.message))
+    refresh()
+      .catch((e) => Alert.alert('Load Error', e.message))
       .finally(() => setBooting(false));
-  }, [db, refreshAll]);
+  }, [db, refresh]);
 
-  const upsertPref = useCallback(async (key: string, value: string) => {
+  const createProjectFromBrief = useCallback(async () => {
+    if (!db || !brief) return;
+    const stamp = now();
+    const row: CreativeProject = {
+      id: id(),
+      title: projectTitle.trim() || brief.title,
+      type: projectType,
+      status: 'Draft',
+      description: brief.listingDescription,
+      prompt: projectPrompt,
+      enhancedPrompt: brief.enhancedPrompt,
+      style: brief.styleDirection,
+      dimensionMode: brief.dimensionMode,
+      notes: brief.nextSteps.join(' | '),
+      assets: 'local-brief-only',
+      marketplaceStatus: 'Draft',
+      galleryStatus: 'Not added',
+      createdAt: stamp,
+      updatedAt: stamp,
+    };
+    await db.runAsync(
+      'INSERT INTO creative_projects (id, title, type, status, description, prompt, enhancedPrompt, style, dimensionMode, notes, assets, marketplaceStatus, galleryStatus, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      row.id,
+      row.title,
+      row.type,
+      row.status,
+      row.description,
+      row.prompt,
+      row.enhancedPrompt,
+      row.style,
+      row.dimensionMode,
+      row.notes,
+      row.assets,
+      row.marketplaceStatus,
+      row.galleryStatus,
+      row.createdAt,
+      row.updatedAt
+    );
+    await logEvent('project', `Project created from AI Studio: ${row.title}`, row.id);
+    await refresh();
+    Alert.alert('Saved', 'Creative brief prepared and saved as project.');
+  }, [db, brief, projectTitle, projectType, projectPrompt, logEvent, refresh]);
+
+  const deleteProject = useCallback(async (row: CreativeProject) => {
+    if (!db) return;
+    await db.runAsync('DELETE FROM creative_projects WHERE id = ?', row.id);
+    await logEvent('project', `Project deleted: ${row.title}`, row.id);
+    await refresh();
+  }, [db, logEvent, refresh]);
+
+  const saveRoom = useCallback(async () => {
+    if (!db) return;
+    const name = roomName.trim();
+    if (!name) return;
+    await db.runAsync(
+      'INSERT INTO museum_rooms (id, name, theme, wallSurface, ceilingSurface, floorSurface, doorwaySurface, artworkIds, curatorNote, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id(),
+      name,
+      roomTheme,
+      'obsidian wall',
+      'neon grid ceiling',
+      'deep ocean floor',
+      'crystal doorway',
+      '',
+      'Curator note prepared locally by Gestalt Intelligence Core.',
+      now()
+    );
+    setRoomName('');
+    await logEvent('museum', `Museum room created: ${name}`);
+    await refresh();
+  }, [db, roomName, roomTheme, logEvent, refresh]);
+
+  const addArtworkToRoom = useCallback(async () => {
+    if (!db || !selectedRoomId || !roomArtworkId.trim()) return;
+    const room = rooms.find((r) => r.id === selectedRoomId);
+    if (!room) return;
+    const ids = new Set(parseIds(room.artworkIds));
+    ids.add(roomArtworkId.trim());
+    await db.runAsync('UPDATE museum_rooms SET artworkIds = ? WHERE id = ?', [...ids].join(', '), room.id);
+    await logEvent('museum', `Artwork linked to room ${room.name}`, room.id);
+    setRoomArtworkId('');
+    await refresh();
+  }, [db, selectedRoomId, roomArtworkId, rooms, logEvent, refresh]);
+
+  const createGallery = useCallback(async () => {
+    if (!db || !galleryTitle.trim()) return;
+    const stamp = now();
+    await db.runAsync(
+      'INSERT INTO galleries (id, title, description, theme, projectIds, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      id(),
+      galleryTitle.trim(),
+      galleryDescription.trim(),
+      galleryTheme,
+      galleryProjectId.trim(),
+      'Draft',
+      stamp,
+      stamp
+    );
+    await logEvent('gallery', `Gallery draft created: ${galleryTitle.trim()}`);
+    setGalleryTitle('');
+    setGalleryDescription('');
+    setGalleryProjectId('');
+    await refresh();
+  }, [db, galleryTitle, galleryDescription, galleryTheme, galleryProjectId, logEvent, refresh]);
+
+  const createListing = useCallback(async () => {
+    if (!db || !listingTitle.trim()) return;
+    await db.runAsync(
+      'INSERT INTO marketplace_listings (id, projectId, title, description, price, licenseType, royaltyPercent, category, tags, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id(),
+      listingProjectId.trim(),
+      listingTitle.trim(),
+      listingDescription.trim(),
+      Number(listingPrice) || 0,
+      listingLicense,
+      12,
+      'Digital Art',
+      'immersive,ai,gestalt',
+      'Draft Mode',
+      now()
+    );
+    await logEvent('marketplace', `Listing saved in Draft Mode: ${listingTitle.trim()}`);
+    setListingTitle('');
+    setListingDescription('');
+    await refresh();
+  }, [db, listingTitle, listingDescription, listingPrice, listingLicense, listingProjectId, logEvent, refresh]);
+
+  const submitCompetition = useCallback(async (competitionType: string) => {
+    if (!db) return;
+    const match = projects[0];
+    await db.runAsync(
+      'INSERT INTO competition_entries (id, competitionType, projectId, title, status, prizeField, judgingCriteria, submittedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      id(),
+      competitionType,
+      match?.id ?? '',
+      `${competitionType} Submission`,
+      'Submitted',
+      competitionType === 'Yearly Gala' ? '1500 Credits' : '250 Credits',
+      'Originality, execution, cohesion',
+      now()
+    );
+    await logEvent('competition', `Competition entry submitted for ${competitionType}`);
+    await refresh();
+  }, [db, projects, logEvent, refresh]);
+
+  const updateCourseProgress = useCallback(async (course: AcademyCourse, delta: number) => {
+    if (!db) return;
+    const progress = Math.max(0, Math.min(100, course.progress + delta));
+    await db.runAsync('UPDATE academy_courses SET progress = ? WHERE id = ?', progress, course.id);
+    await logEvent('academy', `${course.title} progress updated to ${progress}%`, course.id);
+    await refresh();
+  }, [db, logEvent, refresh]);
+
+  const saveMemory = useCallback(async () => {
+    if (!db || !memoryKey.trim() || !memoryValue.trim()) return;
+    const stamp = now();
+    await db.runAsync(
+      'INSERT INTO creative_memory (id, memKey, value, category, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+      id(),
+      memoryKey.trim(),
+      memoryValue.trim(),
+      memoryCategory,
+      stamp,
+      stamp
+    );
+    await logEvent('memory', `Memory saved: ${memoryKey.trim()}`);
+    setMemoryKey('');
+    setMemoryValue('');
+    await refresh();
+  }, [db, memoryKey, memoryValue, memoryCategory, logEvent, refresh]);
+
+  const deleteMemory = useCallback(async (row: CreativeMemory) => {
+    if (!db) return;
+    await db.runAsync('DELETE FROM creative_memory WHERE id = ?', row.id);
+    await logEvent('memory', `Memory deleted: ${row.memKey}`);
+    await refresh();
+  }, [db, logEvent, refresh]);
+
+  const upsertSetting = useCallback(async (key: string, value: string) => {
     if (!db) return;
     await db.runAsync(
-      `INSERT INTO preferences (pref_key, pref_value) VALUES (?, ?)
-       ON CONFLICT(pref_key) DO UPDATE SET pref_value = excluded.pref_value`,
+      'INSERT INTO control_center (prefKey, prefValue) VALUES (?, ?) ON CONFLICT(prefKey) DO UPDATE SET prefValue = excluded.prefValue',
       key,
       value
     );
-  }, [db]);
+    await logEvent('control', `Control Center updated: ${key}=${value}`);
+    await refresh();
+  }, [db, logEvent, refresh]);
 
-  const saveProject = useCallback(async () => {
-    if (!db) return;
-    const name = normalize(projectName);
-    if (!name) return;
-    const stamp = now();
-    if (editingProjectId) {
-      await db.runAsync('UPDATE projects SET name = ?, summary = ?, updated_at = ? WHERE id = ?', name, projectSummary.trim(), stamp, editingProjectId);
-      await log(`Project updated: ${name}`, 'project');
-    } else {
-      await db.runAsync('INSERT INTO projects (name, summary, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', name, projectSummary.trim(), 'open', stamp, stamp);
-      await log(`Project created: ${name}`, 'project');
+  const handleExport = useCallback(() => {
+    const payload = { projects, rooms, galleries, listings, courses, entries, memory, logs: logs.slice(0, 30), exportedAt: now() };
+    setJsonBuffer(JSON.stringify(payload, null, 2));
+  }, [projects, rooms, galleries, listings, courses, entries, memory, logs]);
+
+  const handleImport = useCallback(async () => {
+    if (!db || !jsonBuffer.trim()) return;
+    try {
+      const parsed = JSON.parse(jsonBuffer);
+      if (!Array.isArray(parsed.projects)) throw new Error('Invalid JSON format: missing projects array');
+      for (const row of parsed.projects as CreativeProject[]) {
+        await db.runAsync(
+          'INSERT OR REPLACE INTO creative_projects (id, title, type, status, description, prompt, enhancedPrompt, style, dimensionMode, notes, assets, marketplaceStatus, galleryStatus, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          row.id,
+          row.title,
+          row.type,
+          row.status,
+          row.description,
+          row.prompt,
+          row.enhancedPrompt,
+          row.style,
+          row.dimensionMode,
+          row.notes,
+          row.assets,
+          row.marketplaceStatus,
+          row.galleryStatus,
+          row.createdAt,
+          row.updatedAt
+        );
+      }
+      await logEvent('import', `Imported ${parsed.projects.length} projects from JSON`);
+      await refresh();
+      Alert.alert('Import complete', 'Project JSON imported locally.');
+    } catch (error) {
+      Alert.alert('Import error', error instanceof Error ? error.message : 'Unable to import JSON');
     }
-    setProjectName('');
-    setProjectSummary('');
-    setEditingProjectId(null);
-    await refreshAll();
-  }, [db, editingProjectId, log, projectName, projectSummary, refreshAll]);
+  }, [db, jsonBuffer, logEvent, refresh]);
 
-  const editProject = (project: ProjectRow) => {
-    setProjectName(project.name);
-    setProjectSummary(project.summary);
-    setEditingProjectId(project.id);
+  const runAssistant = useCallback(() => {
+    const briefResult = aiProvider.generateCreativeBrief(assistantInput || 'Creative planning request');
+    setAssistantOutput(
+      [
+        `Role: Gestalt AI Creative Director`,
+        `Title: ${briefResult.title}`,
+        `Prompt Upgrade: ${briefResult.enhancedPrompt}`,
+        `Gallery Suggestion: ${briefResult.museumPlacement}`,
+        `Marketplace Angle: ${briefResult.listingDescription}`,
+        `Next: ${briefResult.nextSteps.join(' -> ')}`,
+      ].join('\n')
+    );
+  }, [assistantInput]);
+
+  const renderHome = () => (
+    <View>
+      <Panel title="Welcome to Gestalt Visions">
+        <Text style={styles.copy}>Gestalt Intelligence Core is active. Local provider: {aiProvider.name} ({aiProvider.isConnected ? 'Connected' : 'Local Mode'}).</Text>
+      </Panel>
+      <View style={styles.grid}>
+        <Stat label="Active Projects" value={String(activeProjects)} />
+        <Stat label="Galleries" value={String(galleries.length)} />
+        <Stat label="Market Drafts" value={String(listings.filter((l) => l.status === 'Draft Mode').length)} />
+        <Stat label="Academy Avg" value={`${Math.round(courses.reduce((sum, c) => sum + c.progress, 0) / (courses.length || 1))}%`} />
+      </View>
+      <Panel title="Daily Creative Challenge">
+        <Text style={styles.copy}>Design a "Cosmic Archive" room with one hero artifact and write curator narration for a buyer walkthrough.</Text>
+      </Panel>
+      <Panel title="Recent Creation Log">
+        {logs.slice(0, 6).map((l) => (
+          <Text key={l.id} style={styles.listText}>• {l.message}</Text>
+        ))}
+      </Panel>
+      <View style={styles.actionRow}>
+        <ActionButton title="Start New Creation" onPress={() => setActiveTab('studio')} />
+        <ActionButton title="Build Gallery" onPress={() => { setActiveTab('more'); setMoreScreen('galleryBuilder'); }} />
+      </View>
+    </View>
+  );
+
+  const renderStudio = () => (
+    <View>
+      <Panel title="AI Studio">
+        <Field label="Prompt" value={projectPrompt} onChangeText={setProjectPrompt} multiline />
+        <Field label="Project Title" value={projectTitle} onChangeText={setProjectTitle} />
+        <Field label="Project Type" value={projectType} onChangeText={setProjectType} />
+        <Field label="Style Selector" value={projectStyle} onChangeText={setProjectStyle} />
+        <Field label="Dimension Selector" value={projectDim} onChangeText={setProjectDim} />
+        <ActionButton
+          title="Prepare Creative Brief"
+          onPress={async () => {
+            const b = aiProvider.generateCreativeBrief(projectPrompt, projectStyle);
+            setBrief(b);
+            await logEvent('studio', `Creative brief prepared for prompt: ${projectPrompt.slice(0, 48)}`);
+            await refresh();
+          }}
+        />
+      </Panel>
+      {brief && (
+        <Panel title="Structured Creative Brief (Local)">
+          <Text style={styles.listText}>Title: {brief.title}</Text>
+          <Text style={styles.listText}>Enhanced Prompt: {brief.enhancedPrompt}</Text>
+          <Text style={styles.listText}>Suggested Style: {brief.styleDirection}</Text>
+          <Text style={styles.listText}>Museum Placement: {brief.museumPlacement}</Text>
+          <Text style={styles.listText}>Tags: {brief.tags.join(', ')}</Text>
+          <Text style={styles.listText}>Next Steps: {brief.nextSteps.join(' | ')}</Text>
+          <ActionButton title="Save to Project" onPress={createProjectFromBrief} />
+        </Panel>
+      )}
+    </View>
+  );
+
+  const renderMuseum = () => {
+    const selectedRoom = rooms.find((r) => r.id === selectedRoomId) ?? rooms[0];
+    return (
+      <View>
+        <Panel title="Create Museum Room">
+          <Field label="Room Name" value={roomName} onChangeText={setRoomName} />
+          <Field label="Room Theme" value={roomTheme} onChangeText={setRoomTheme} />
+          <ActionButton title="Create Room" onPress={saveRoom} />
+        </Panel>
+        <Panel title="Room Controls">
+          <Field label="Selected Room ID" value={selectedRoomId} onChangeText={setSelectedRoomId} />
+          <Field label="Add Artwork Project ID" value={roomArtworkId} onChangeText={setRoomArtworkId} />
+          <ActionButton title="Add Artwork to Room" onPress={addArtworkToRoom} />
+          {selectedRoom && (
+            <View style={styles.roomInfo}>
+              <Text style={styles.listText}>Room: {selectedRoom.name}</Text>
+              <Text style={styles.listText}>Theme: {selectedRoom.theme}</Text>
+              <Text style={styles.listText}>Surfaces: {selectedRoom.wallSurface} / {selectedRoom.ceilingSurface} / {selectedRoom.floorSurface}</Text>
+              <Text style={styles.listText}>Curator Note: {selectedRoom.curatorNote}</Text>
+              <Text style={styles.listText}>Artwork IDs: {selectedRoom.artworkIds || 'none'}</Text>
+            </View>
+          )}
+        </Panel>
+        <Panel title="Museum Rooms">
+          {rooms.map((r) => (
+            <Pressable key={r.id} style={styles.itemRow} onPress={() => setSelectedRoomId(r.id)}>
+              <Text style={styles.listText}>{r.name} • {r.theme}</Text>
+              <Text style={styles.muted}>{r.id}</Text>
+            </Pressable>
+          ))}
+        </Panel>
+      </View>
+    );
   };
 
-  const deleteProject = useCallback(async (project: ProjectRow) => {
-    if (!db) return;
-    await db.runAsync('DELETE FROM projects WHERE id = ?', project.id);
-    await log(`Project deleted: ${project.name}`, 'project');
-    await refreshAll();
-  }, [db, log, refreshAll]);
+  const renderMarket = () => (
+    <View>
+      <Panel title="Create Marketplace Listing">
+        <Text style={styles.warning}>Stripe not connected. Listings are stored locally in Draft Mode.</Text>
+        <Field label="Project ID" value={listingProjectId} onChangeText={setListingProjectId} />
+        <Field label="Title" value={listingTitle} onChangeText={setListingTitle} />
+        <Field label="Description" value={listingDescription} onChangeText={setListingDescription} multiline />
+        <Field label="Price" value={listingPrice} onChangeText={setListingPrice} />
+        <Field label="License Type" value={listingLicense} onChangeText={setListingLicense} />
+        <ActionButton title="Save Listing Draft" onPress={createListing} />
+      </Panel>
+      <Panel title="Marketplace Drafts">
+        {listings.map((row) => (
+          <Text key={row.id} style={styles.listText}>• {row.title} — ${row.price} ({row.status})</Text>
+        ))}
+      </Panel>
+    </View>
+  );
 
-  const toggleProject = useCallback(async (project: ProjectRow) => {
-    if (!db) return;
-    const nextStatus: Status = project.status === 'open' ? 'done' : 'open';
-    await db.runAsync('UPDATE projects SET status = ?, updated_at = ? WHERE id = ?', nextStatus, now(), project.id);
-    await log(`${nextStatus === 'done' ? 'Project completed' : 'Project reopened'}: ${project.name}`, 'project');
-    await refreshAll();
-  }, [db, log, refreshAll]);
+  const renderAcademy = () => (
+    <View>
+      <Panel title="Academy Courses">
+        {courses.map((course) => (
+          <View key={course.id} style={styles.itemCard}>
+            <Text style={styles.cardTitle}>{course.title}</Text>
+            <Text style={styles.copy}>{course.description}</Text>
+            <Text style={styles.listText}>Progress: {course.progress}%</Text>
+            <View style={styles.actionRow}>
+              <ActionButton title="+10" onPress={() => updateCourseProgress(course, 10)} compact />
+              <ActionButton title="-10" onPress={() => updateCourseProgress(course, -10)} compact secondary />
+            </View>
+          </View>
+        ))}
+      </Panel>
+    </View>
+  );
 
-  const saveTask = useCallback(async () => {
-    if (!db) return;
-    const title = normalize(taskTitle);
-    if (!title) return;
-    const stamp = now();
-    if (editingTaskId) {
-      await db.runAsync('UPDATE tasks SET title = ?, detail = ?, project_name = ?, updated_at = ? WHERE id = ?', title, taskDetail.trim(), taskProject.trim(), stamp, editingTaskId);
-      await log(`Task updated: ${title}`, 'task');
-    } else {
-      await db.runAsync('INSERT INTO tasks (title, detail, project_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', title, taskDetail.trim(), taskProject.trim(), 'open', stamp, stamp);
-      await log(`Task created: ${title}`, 'task');
-    }
-    setTaskTitle('');
-    setTaskDetail('');
-    setTaskProject('');
-    setEditingTaskId(null);
-    await refreshAll();
-  }, [db, editingTaskId, log, refreshAll, taskDetail, taskProject, taskTitle]);
-
-  const editTask = (task: TaskRow) => {
-    setTaskTitle(task.title);
-    setTaskDetail(task.detail);
-    setTaskProject(task.project_name);
-    setEditingTaskId(task.id);
-  };
-
-  const toggleTask = useCallback(async (task: TaskRow) => {
-    if (!db) return;
-    const nextStatus: Status = task.status === 'open' ? 'done' : 'open';
-    await db.runAsync('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?', nextStatus, now(), task.id);
-    await log(`${nextStatus === 'done' ? 'Task completed' : 'Task reopened'}: ${task.title}`, 'task');
-    await refreshAll();
-  }, [db, log, refreshAll]);
-
-  const deleteTask = useCallback(async (task: TaskRow) => {
-    if (!db) return;
-    await db.runAsync('DELETE FROM tasks WHERE id = ?', task.id);
-    await log(`Task deleted: ${task.title}`, 'task');
-    await refreshAll();
-  }, [db, log, refreshAll]);
-
-  const savePrompt = useCallback(async () => {
-    if (!db) return;
-    const title = normalize(promptTitle);
-    const body = promptBody.trim();
-    if (!title || !body) return;
-    const category = normalize(promptCategory) || 'General';
-    const stamp = now();
-    if (editingPromptId) {
-      await db.runAsync('UPDATE prompts SET title = ?, category = ?, body = ?, updated_at = ? WHERE id = ?', title, category, body, stamp, editingPromptId);
-      await log(`Prompt updated: ${title}`, 'prompt');
-    } else {
-      await db.runAsync('INSERT INTO prompts (title, category, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', title, category, body, stamp, stamp);
-      await log(`Prompt saved: ${title}`, 'prompt');
-    }
-    setPromptTitle('');
-    setPromptCategory('General');
-    setPromptBody('');
-    setEditingPromptId(null);
-    await refreshAll();
-  }, [db, editingPromptId, log, promptBody, promptCategory, promptTitle, refreshAll]);
-
-  const editPrompt = (prompt: PromptRow) => {
-    setPromptTitle(prompt.title);
-    setPromptCategory(prompt.category);
-    setPromptBody(prompt.body);
-    setEditingPromptId(prompt.id);
-  };
-
-  const deletePrompt = useCallback(async (prompt: PromptRow) => {
-    if (!db) return;
-    await db.runAsync('DELETE FROM prompts WHERE id = ?', prompt.id);
-    await log(`Prompt deleted: ${prompt.title}`, 'prompt');
-    await refreshAll();
-  }, [db, log, refreshAll]);
-
-  const saveNote = useCallback(async () => {
-    if (!db) return;
-    const title = normalize(noteTitle);
-    const body = noteBody.trim();
-    if (!title || !body) return;
-    const stamp = now();
-    if (editingNoteId) {
-      await db.runAsync('UPDATE notes SET title = ?, body = ?, updated_at = ? WHERE id = ?', title, body, stamp, editingNoteId);
-      await log(`Note updated: ${title}`, 'note');
-    } else {
-      await db.runAsync('INSERT INTO notes (title, body, created_at, updated_at) VALUES (?, ?, ?, ?)', title, body, stamp, stamp);
-      await log(`Note saved: ${title}`, 'note');
-    }
-    setNoteTitle('');
-    setNoteBody('');
-    setEditingNoteId(null);
-    await refreshAll();
-  }, [db, editingNoteId, log, noteBody, noteTitle, refreshAll]);
-
-  const editNote = (note: NoteRow) => {
-    setNoteTitle(note.title);
-    setNoteBody(note.body);
-    setEditingNoteId(note.id);
-  };
-
-  const deleteNote = useCallback(async (note: NoteRow) => {
-    if (!db) return;
-    await db.runAsync('DELETE FROM notes WHERE id = ?', note.id);
-    await log(`Note deleted: ${note.title}`, 'note');
-    await refreshAll();
-  }, [db, log, refreshAll]);
-
-  const togglePreference = useCallback(async (key: 'focusMode' | 'connectorReady', value: boolean) => {
-    if (key === 'focusMode') setFocusMode(value);
-    if (key === 'connectorReady') setConnectorReady(value);
-    await upsertPref(key, String(value));
-    await log(`${key} set to ${value ? 'on' : 'off'}`, 'setting');
-    await refreshAll();
-  }, [log, refreshAll, upsertPref]);
+  const renderMore = () => (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moreRail}>
+        {[
+          ['projects', 'Projects'],
+          ['galleryBuilder', 'Gallery'],
+          ['competitions', 'Competitions'],
+          ['creatorDashboard', 'Dashboard'],
+          ['creationLog', 'Creation Log'],
+          ['creativeMemory', 'Memory'],
+          ['controlCenter', 'Control'],
+          ['assistant', 'Gestalt AI'],
+        ].map(([key, label]) => (
+          <Pressable key={key} onPress={() => setMoreScreen(key as MoreScreen)} style={[styles.chip, moreScreen === key && styles.chipActive]}>
+            <Text style={styles.chipText}>{label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      {moreScreen === 'projects' && (
+        <Panel title="Projects">
+          {projects.map((p) => (
+            <View key={p.id} style={styles.itemCard}>
+              <Text style={styles.cardTitle}>{p.title}</Text>
+              <Text style={styles.listText}>{p.type} • {p.status}</Text>
+              <Text style={styles.copy}>{p.description}</Text>
+              <ActionButton title="Delete" onPress={() => deleteProject(p)} compact secondary />
+            </View>
+          ))}
+        </Panel>
+      )}
+      {moreScreen === 'galleryBuilder' && (
+        <Panel title="Gallery Builder">
+          <Field label="Gallery Title" value={galleryTitle} onChangeText={setGalleryTitle} />
+          <Field label="Description" value={galleryDescription} onChangeText={setGalleryDescription} multiline />
+          <Field label="Theme" value={galleryTheme} onChangeText={setGalleryTheme} />
+          <Field label="Project IDs (comma separated)" value={galleryProjectId} onChangeText={setGalleryProjectId} />
+          <ActionButton title="Save Gallery Draft" onPress={createGallery} />
+          {galleries.map((g) => (
+            <Text key={g.id} style={styles.listText}>• {g.title} ({g.status}) [{g.theme}]</Text>
+          ))}
+        </Panel>
+      )}
+      {moreScreen === 'competitions' && (
+        <Panel title="Competitions">
+          <Text style={styles.warning}>Leaderboard is local demo-only, not live global results.</Text>
+          {competitionTypes.map((c) => (
+            <View key={c} style={styles.itemRow}>
+              <Text style={styles.listText}>{c}</Text>
+              <ActionButton title="Submit" onPress={() => submitCompetition(c)} compact />
+            </View>
+          ))}
+          {entries.map((e) => (
+            <Text key={e.id} style={styles.muted}>• {e.competitionType}: {e.status} ({e.prizeField})</Text>
+          ))}
+        </Panel>
+      )}
+      {moreScreen === 'creatorDashboard' && (
+        <Panel title="Creator Dashboard">
+          <Text style={styles.listText}>Project Count: {projects.length}</Text>
+          <Text style={styles.listText}>Gallery Count: {galleries.length}</Text>
+          <Text style={styles.listText}>Marketplace Drafts: {listings.filter((l) => l.status === 'Draft Mode').length}</Text>
+          <Text style={styles.listText}>Competition Entries: {entries.filter((e) => e.status === 'Submitted').length}</Text>
+          <Text style={styles.listText}>Estimated Value: ${listings.reduce((sum, l) => sum + l.price, 0).toFixed(2)}</Text>
+          <Text style={styles.copy}>AI Suggestion: Convert "Ready to Publish" projects into themed gallery drops and create one exclusive license offer this week.</Text>
+        </Panel>
+      )}
+      {moreScreen === 'creationLog' && (
+        <Panel title="Creation Log">
+          {logs.map((l) => (
+            <Text key={l.id} style={styles.listText}>• [{l.type}] {l.message}</Text>
+          ))}
+        </Panel>
+      )}
+      {moreScreen === 'creativeMemory' && (
+        <Panel title="Creative Memory (editable/deletable)">
+          <Field label="Memory Key" value={memoryKey} onChangeText={setMemoryKey} />
+          <Field label="Value" value={memoryValue} onChangeText={setMemoryValue} multiline />
+          <Field label="Category" value={memoryCategory} onChangeText={setMemoryCategory} />
+          <ActionButton title="Save Memory" onPress={saveMemory} />
+          {memory.map((m) => (
+            <View key={m.id} style={styles.itemRow}>
+              <Text style={styles.listText}>{m.memKey}: {m.value}</Text>
+              <ActionButton title="Delete" onPress={() => deleteMemory(m)} compact secondary />
+            </View>
+          ))}
+        </Panel>
+      )}
+      {moreScreen === 'controlCenter' && (
+        <Panel title="Control Center">
+          <Text style={styles.copy}>AI access, memory, export, marketplace and privacy controls.</Text>
+          <ToggleRow label="AI Access" value={settings.aiAccess === 'enabled'} onValueChange={(v) => upsertSetting('aiAccess', v ? 'enabled' : 'disabled')} />
+          <ToggleRow label="Export Permission" value={settings.exportPermission !== 'disabled'} onValueChange={(v) => upsertSetting('exportPermission', v ? 'enabled' : 'disabled')} />
+          <ToggleRow label="Marketplace Permission" value={settings.marketplacePermissions !== 'disabled'} onValueChange={(v) => upsertSetting('marketplacePermissions', v ? 'draft-only' : 'disabled')} />
+          <ActionButton title="Export JSON" onPress={handleExport} />
+          <Field label="JSON Buffer" value={jsonBuffer} onChangeText={setJsonBuffer} multiline />
+          <ActionButton title="Import Project JSON" onPress={handleImport} secondary />
+        </Panel>
+      )}
+      {moreScreen === 'assistant' && (
+        <Panel title="Gestalt AI Assistant">
+          <Text style={styles.copy}>Roles: Creative Director, Curator, Marketplace Advisor, Tutor, Prompt Engineer, Brand Strategist.</Text>
+          <Field label="Ask Gestalt AI" value={assistantInput} onChangeText={setAssistantInput} multiline />
+          <ActionButton title="Generate Structured Suggestion" onPress={runAssistant} />
+          {!!assistantOutput && <Text style={styles.listText}>{assistantOutput}</Text>}
+        </Panel>
+      )}
+    </View>
+  );
 
   if (booting) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="light-content" />
-        <View style={styles.loaderWrap}>
-          <Text style={styles.loaderTitle}>EvaOneAI</Text>
-          <Text style={styles.loaderText}>Loading Layer 1 workspace...</Text>
-        </View>
+        <View style={styles.loadingWrap}><Text style={styles.title}>Loading Gestalt Visions...</Text></View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.heroCard}>
-          <Text style={styles.eyebrow}>LAYER 1 / LOCAL WORKSPACE</Text>
-          <Text style={styles.title}>EvaOneAI</Text>
-          <Text style={styles.subtitle}>
-            A real mobile and web Expo foundation for projects, tasks, prompts, notes, activity, and settings. Advanced agents can be wired in after the core shell behaves.
-          </Text>
-        </View>
-
-        <View style={styles.tabsRow}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Gestalt Visions</Text>
+        <Text style={styles.subtitle}>Creative platform • museum • marketplace • academy • local-first AI studio</Text>
+        <ScrollView contentContainerStyle={styles.content}>
+          {activeTab === 'home' && renderHome()}
+          {activeTab === 'studio' && renderStudio()}
+          {activeTab === 'museum' && renderMuseum()}
+          {activeTab === 'market' && renderMarket()}
+          {activeTab === 'academy' && renderAcademy()}
+          {activeTab === 'more' && renderMore()}
+        </ScrollView>
+        <View style={styles.tabBar}>
           {[
-            ['dashboard', 'Dashboard'],
-            ['projects', 'Projects'],
-            ['tasks', 'Tasks'],
-            ['prompts', 'Prompts'],
-            ['notes', 'Notes'],
-            ['activity', 'Activity'],
-            ['settings', 'Settings'],
+            ['home', 'Home'],
+            ['studio', 'Studio'],
+            ['museum', 'Museum'],
+            ['market', 'Market'],
+            ['academy', 'Academy'],
+            ['more', 'More'],
           ].map(([key, label]) => (
-            <Pressable key={key} onPress={() => setActiveTab(key as TabKey)} style={[styles.tabButton, activeTab === key && styles.tabButtonActive]}>
-              <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>{label}</Text>
+            <Pressable key={key} onPress={() => setActiveTab(key as MainTab)} style={[styles.tab, activeTab === key && styles.tabActive]}>
+              <Text style={styles.tabText}>{label}</Text>
             </Pressable>
           ))}
         </View>
-
-        {activeTab === 'dashboard' && (
-          <View style={styles.panel}>
-            <SectionHeader title="Command Dashboard" subtitle="Live counts from local data. No fake traction theater." />
-            <View style={styles.statsGrid}>
-              <StatCard label="Projects" value={String(projects.length)} />
-              <StatCard label="Open Tasks" value={String(openTasks.length)} />
-              <StatCard label="Prompts" value={String(prompts.length)} />
-              <StatCard label="Notes" value={String(notes.length)} />
-            </View>
-            <View style={styles.callout}>
-              <Text style={styles.calloutTitle}>Next layer path</Text>
-              <Text style={styles.panelText}>Layer 2 connects Supabase sync. Layer 3 adds AI gateway. Layer 4 adds real app integrations with approval logs.</Text>
-            </View>
-            <View style={styles.buttonRow}>
-              <PrimaryButton label="Add project" onPress={() => setActiveTab('projects')} />
-              <SecondaryButton label="Save prompt" onPress={() => setActiveTab('prompts')} />
-              <SecondaryButton label="Open tasks" onPress={() => setActiveTab('tasks')} />
-            </View>
-          </View>
-        )}
-
-        {activeTab === 'projects' && (
-          <View style={styles.panel}>
-            <SectionHeader title="Projects" subtitle="Create the work containers EvaOneAI will eventually orchestrate." />
-            <TextInput value={projectName} onChangeText={setProjectName} placeholder="Project name" placeholderTextColor={palette.muted} style={styles.input} />
-            <TextInput value={projectSummary} onChangeText={setProjectSummary} placeholder="Project summary" placeholderTextColor={palette.muted} multiline style={styles.textAreaSmall} />
-            <View style={styles.buttonRow}>
-              <PrimaryButton label={editingProjectId ? 'Update project' : 'Create project'} onPress={saveProject} />
-              {editingProjectId ? <SecondaryButton label="Cancel edit" onPress={() => { setEditingProjectId(null); setProjectName(''); setProjectSummary(''); }} /> : null}
-            </View>
-            {projects.length === 0 ? <EmptyState text="No projects yet. Create one and stop letting ideas wander unsupervised." /> : null}
-            {projects.map((project) => (
-              <View key={project.id} style={styles.listCard}>
-                <Text style={styles.listCardTitle}>{project.name}</Text>
-                {project.summary ? <Text style={styles.panelText}>{project.summary}</Text> : null}
-                <Text style={styles.metaText}>{project.status.toUpperCase()} • Updated {formatDate(project.updated_at)}</Text>
-                <View style={styles.buttonRowCompact}>
-                  <SecondaryButton label="Edit" onPress={() => editProject(project)} />
-                  <SecondaryButton label={project.status === 'open' ? 'Complete' : 'Reopen'} onPress={() => toggleProject(project)} />
-                  <DangerButton label="Delete" onPress={() => deleteProject(project)} />
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'tasks' && (
-          <View style={styles.panel}>
-            <SectionHeader title="Tasks" subtitle="Capture actions, connect them to projects, and close loops." />
-            <TextInput value={taskTitle} onChangeText={setTaskTitle} placeholder="Task title" placeholderTextColor={palette.muted} style={styles.input} />
-            <TextInput value={taskProject} onChangeText={setTaskProject} placeholder="Related project name" placeholderTextColor={palette.muted} style={styles.input} />
-            <TextInput value={taskDetail} onChangeText={setTaskDetail} placeholder="Task details" placeholderTextColor={palette.muted} multiline style={styles.textAreaSmall} />
-            <View style={styles.buttonRow}>
-              <PrimaryButton label={editingTaskId ? 'Update task' : 'Create task'} onPress={saveTask} />
-              {editingTaskId ? <SecondaryButton label="Cancel edit" onPress={() => { setEditingTaskId(null); setTaskTitle(''); setTaskProject(''); setTaskDetail(''); }} /> : null}
-            </View>
-            <Text style={styles.listHeading}>Open</Text>
-            {openTasks.length === 0 ? <EmptyState text="No open tasks." /> : null}
-            {openTasks.map((task) => <TaskCard key={task.id} task={task} onEdit={() => editTask(task)} onToggle={() => toggleTask(task)} onDelete={() => deleteTask(task)} />)}
-            <Text style={styles.listHeading}>Completed</Text>
-            {doneTasks.length === 0 ? <EmptyState text="No completed tasks yet." /> : null}
-            {doneTasks.map((task) => <TaskCard key={task.id} task={task} onEdit={() => editTask(task)} onToggle={() => toggleTask(task)} onDelete={() => deleteTask(task)} />)}
-          </View>
-        )}
-
-        {activeTab === 'prompts' && (
-          <View style={styles.panel}>
-            <SectionHeader title="Prompt Library" subtitle="Save reusable prompts so the workflow does not depend on archaeological memory." />
-            <TextInput value={promptSearch} onChangeText={setPromptSearch} placeholder="Search prompts" placeholderTextColor={palette.muted} style={styles.input} />
-            <TextInput value={promptTitle} onChangeText={setPromptTitle} placeholder="Prompt title" placeholderTextColor={palette.muted} style={styles.input} />
-            <TextInput value={promptCategory} onChangeText={setPromptCategory} placeholder="Category" placeholderTextColor={palette.muted} style={styles.input} />
-            <TextInput value={promptBody} onChangeText={setPromptBody} placeholder="Prompt body" placeholderTextColor={palette.muted} multiline style={styles.textArea} />
-            <View style={styles.buttonRow}>
-              <PrimaryButton label={editingPromptId ? 'Update prompt' : 'Save prompt'} onPress={savePrompt} />
-              {editingPromptId ? <SecondaryButton label="Cancel edit" onPress={() => { setEditingPromptId(null); setPromptTitle(''); setPromptCategory('General'); setPromptBody(''); }} /> : null}
-            </View>
-            {filteredPrompts.length === 0 ? <EmptyState text="No prompts match yet." /> : null}
-            {filteredPrompts.map((prompt) => (
-              <View key={prompt.id} style={styles.listCard}>
-                <Text style={styles.listCardTitle}>{prompt.title}</Text>
-                <Text style={styles.metaText}>{prompt.category.toUpperCase()} • Updated {formatDate(prompt.updated_at)}</Text>
-                <Text style={styles.panelText}>{prompt.body}</Text>
-                <View style={styles.buttonRowCompact}>
-                  <SecondaryButton label="Edit" onPress={() => editPrompt(prompt)} />
-                  <DangerButton label="Delete" onPress={() => deletePrompt(prompt)} />
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'notes' && (
-          <View style={styles.panel}>
-            <SectionHeader title="Notes" subtitle="Store working context, client decisions, and build details locally." />
-            <TextInput value={noteTitle} onChangeText={setNoteTitle} placeholder="Note title" placeholderTextColor={palette.muted} style={styles.input} />
-            <TextInput value={noteBody} onChangeText={setNoteBody} placeholder="Note body" placeholderTextColor={palette.muted} multiline style={styles.textArea} />
-            <View style={styles.buttonRow}>
-              <PrimaryButton label={editingNoteId ? 'Update note' : 'Save note'} onPress={saveNote} />
-              {editingNoteId ? <SecondaryButton label="Cancel edit" onPress={() => { setEditingNoteId(null); setNoteTitle(''); setNoteBody(''); }} /> : null}
-            </View>
-            {notes.length === 0 ? <EmptyState text="No notes saved yet." /> : null}
-            {notes.map((note) => (
-              <View key={note.id} style={styles.listCard}>
-                <Text style={styles.listCardTitle}>{note.title}</Text>
-                <Text style={styles.metaText}>Updated {formatDate(note.updated_at)}</Text>
-                <Text style={styles.panelText}>{note.body}</Text>
-                <View style={styles.buttonRowCompact}>
-                  <SecondaryButton label="Edit" onPress={() => editNote(note)} />
-                  <DangerButton label="Delete" onPress={() => deleteNote(note)} />
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'activity' && (
-          <View style={styles.panel}>
-            <SectionHeader title="Activity Log" subtitle="A visible trail of what changed. Revolutionary, apparently." />
-            {logs.length === 0 ? <EmptyState text="No activity yet." /> : null}
-            {logs.map((entry) => (
-              <View key={entry.id} style={styles.logCard}>
-                <Text style={styles.logKind}>{entry.kind.toUpperCase()}</Text>
-                <Text style={styles.listCardTitle}>{entry.entry}</Text>
-                <Text style={styles.metaText}>{formatDate(entry.created_at)}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'settings' && (
-          <View style={styles.panel}>
-            <SectionHeader title="Settings" subtitle="Layer controls for the local MVP shell." />
-            <ToggleCard title="Focus mode" body="Keeps the app aimed at projects, tasks, and stored context." value={focusMode} onValueChange={(value) => togglePreference('focusMode', value)} />
-            <ToggleCard title="Connector-ready mode" body="Marks this workspace as prepared for future Supabase, AI gateway, and app integrations. It does not fake access." value={connectorReady} onValueChange={(value) => togglePreference('connectorReady', value)} />
-            <View style={styles.callout}>
-              <Text style={styles.calloutTitle}>Current build layer</Text>
-              <Text style={styles.panelText}>Layer 1 is local-first. It stores data on device/browser runtime through Expo SQLite. Next layers should add auth, sync, AI routing, and integration permissions.</Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={styles.sectionHeader}>
+    <View style={styles.panel}>
       <Text style={styles.panelTitle}>{title}</Text>
-      <Text style={styles.panelText}>{subtitle}</Text>
+      {children}
     </View>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function Field({ label, value, onChangeText, multiline = false }: { label: string; value: string; onChangeText: (value: string) => void; multiline?: boolean }) {
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        multiline={multiline}
+        placeholderTextColor={palette.muted}
+        style={[styles.input, multiline && styles.textArea]}
+      />
+    </View>
+  );
+}
+
+function ActionButton({ title, onPress, compact = false, secondary = false }: { title: string; onPress: () => void; compact?: boolean; secondary?: boolean }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.button, compact && styles.buttonCompact, secondary && styles.buttonSecondary]}>
+      <Text style={styles.buttonText}>{title}</Text>
+    </Pressable>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.statCard}>
       <Text style={styles.statValue}>{value}</Text>
@@ -585,110 +1046,118 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function ToggleRow({ label, value, onValueChange }: { label: string; value: boolean; onValueChange: (value: boolean) => void }) {
   return (
-    <View style={styles.emptyCard}>
-      <Text style={styles.panelText}>{text}</Text>
+    <View style={styles.itemRow}>
+      <Text style={styles.listText}>{label}</Text>
+      <Pressable onPress={() => onValueChange(!value)} style={[styles.chip, value && styles.chipActive]}>
+        <Text style={styles.chipText}>{value ? 'Enabled' : 'Disabled'}</Text>
+      </Pressable>
     </View>
-  );
-}
-
-function TaskCard({ task, onEdit, onToggle, onDelete }: { task: TaskRow; onEdit: () => void; onToggle: () => void; onDelete: () => void }) {
-  return (
-    <View style={styles.listCard}>
-      <Text style={styles.listCardTitle}>{task.title}</Text>
-      {task.project_name ? <Text style={styles.metaText}>PROJECT • {task.project_name}</Text> : null}
-      {task.detail ? <Text style={styles.panelText}>{task.detail}</Text> : null}
-      <Text style={styles.metaText}>{task.status.toUpperCase()} • Updated {formatDate(task.updated_at)}</Text>
-      <View style={styles.buttonRowCompact}>
-        <SecondaryButton label="Edit" onPress={onEdit} />
-        <SecondaryButton label={task.status === 'open' ? 'Complete' : 'Reopen'} onPress={onToggle} />
-        <DangerButton label="Delete" onPress={onDelete} />
-      </View>
-    </View>
-  );
-}
-
-function ToggleCard({ title, body, value, onValueChange }: { title: string; body: string; value: boolean; onValueChange: (value: boolean) => void | Promise<void> }) {
-  return (
-    <View style={styles.toggleCard}>
-      <View style={styles.toggleCopy}>
-        <Text style={styles.toggleTitle}>{title}</Text>
-        <Text style={styles.panelText}>{body}</Text>
-      </View>
-      <Switch value={value} onValueChange={(next) => void onValueChange(next)} />
-    </View>
-  );
-}
-
-function PrimaryButton({ label, onPress }: { label: string; onPress: () => void | Promise<void> }) {
-  return (
-    <Pressable style={styles.primaryButton} onPress={() => void onPress()}>
-      <Text style={styles.primaryButtonText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function SecondaryButton({ label, onPress }: { label: string; onPress: () => void | Promise<void> }) {
-  return (
-    <Pressable style={styles.secondaryButton} onPress={() => void onPress()}>
-      <Text style={styles.secondaryButtonText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function DangerButton({ label, onPress }: { label: string; onPress: () => void | Promise<void> }) {
-  return (
-    <Pressable style={styles.dangerButton} onPress={() => void onPress()}>
-      <Text style={styles.dangerButtonText}>{label}</Text>
-    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.bg },
-  container: { padding: 16, paddingBottom: 36, gap: 16 },
-  loaderWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: palette.bg },
-  loaderTitle: { color: palette.text, fontSize: 30, fontWeight: '900' },
-  loaderText: { color: palette.muted, marginTop: 8, fontSize: 15 },
-  heroCard: { backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.border, borderRadius: 26, padding: 18, gap: 10 },
-  eyebrow: { color: palette.cyan, fontSize: 11, letterSpacing: 1.4, fontWeight: '800' },
-  title: { color: palette.text, fontSize: 34, fontWeight: '900' },
-  subtitle: { color: palette.muted, fontSize: 15, lineHeight: 22 },
-  tabsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tabButton: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border },
-  tabButtonActive: { backgroundColor: 'rgba(6, 182, 212, 0.16)', borderColor: 'rgba(6, 182, 212, 0.42)' },
-  tabText: { color: palette.muted, fontWeight: '800', fontSize: 13 },
-  tabTextActive: { color: palette.text },
-  panel: { backgroundColor: palette.panel, borderRadius: 24, padding: 18, borderWidth: 1, borderColor: palette.border, gap: 14 },
-  sectionHeader: { gap: 6 },
-  panelTitle: { color: palette.text, fontSize: 22, fontWeight: '900' },
-  panelText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { minWidth: '46%', flex: 1, backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 18, padding: 14, gap: 6 },
-  statValue: { color: palette.text, fontSize: 24, fontWeight: '900' },
-  statLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-  callout: { backgroundColor: 'rgba(124, 58, 237, 0.13)', borderWidth: 1, borderColor: palette.border, borderRadius: 18, padding: 14, gap: 6 },
-  calloutTitle: { color: palette.text, fontSize: 15, fontWeight: '900' },
-  input: { backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 16, color: palette.text, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  textArea: { minHeight: 150, textAlignVertical: 'top', backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 16, color: palette.text, paddingHorizontal: 14, paddingVertical: 14, fontSize: 15 },
-  textAreaSmall: { minHeight: 90, textAlignVertical: 'top', backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 16, color: palette.text, paddingHorizontal: 14, paddingVertical: 14, fontSize: 15 },
-  buttonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  buttonRowCompact: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  primaryButton: { backgroundColor: palette.cyan, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14 },
-  primaryButtonText: { color: '#031018', fontWeight: '900', fontSize: 14 },
-  secondaryButton: { borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: 'rgba(234, 242, 255, 0.03)' },
-  secondaryButtonText: { color: palette.text, fontWeight: '800', fontSize: 13 },
-  dangerButton: { borderWidth: 1, borderColor: 'rgba(251, 113, 133, 0.45)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: 'rgba(251, 113, 133, 0.08)' },
-  dangerButtonText: { color: palette.danger, fontWeight: '900', fontSize: 13 },
-  listHeading: { color: palette.violet, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 2 },
-  listCard: { backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 18, padding: 14, gap: 8 },
-  listCardTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '900' },
-  metaText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-  emptyCard: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.panelAlt, padding: 14 },
-  logCard: { backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 18, padding: 14, gap: 8 },
-  logKind: { color: palette.green, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
-  toggleCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16, backgroundColor: palette.panelAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 18, padding: 14 },
-  toggleCopy: { flex: 1, gap: 6 },
-  toggleTitle: { color: palette.text, fontSize: 15, fontWeight: '900' },
+  safe: { flex: 1, backgroundColor: palette.bg },
+  container: { flex: 1, paddingHorizontal: 14, paddingTop: 8 },
+  content: { paddingBottom: 120 },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 26, color: palette.text, fontWeight: '800' },
+  subtitle: { color: palette.muted, marginTop: 2, marginBottom: 10 },
+  panel: {
+    backgroundColor: palette.panel,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+  },
+  panelTitle: { color: palette.text, fontSize: 17, fontWeight: '700', marginBottom: 8 },
+  copy: { color: palette.muted, lineHeight: 20 },
+  listText: { color: palette.text, lineHeight: 20, marginBottom: 6 },
+  muted: { color: palette.muted, fontSize: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  statCard: {
+    width: '48%',
+    backgroundColor: palette.panelSolid,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 12,
+  },
+  statValue: { color: palette.cyan, fontSize: 24, fontWeight: '800' },
+  statLabel: { color: palette.muted, marginTop: 2 },
+  fieldWrap: { marginBottom: 10 },
+  fieldLabel: { color: palette.text, fontSize: 13, marginBottom: 6 },
+  input: {
+    backgroundColor: '#0c1330',
+    borderColor: palette.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    color: palette.text,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  textArea: { minHeight: 78, textAlignVertical: 'top' },
+  button: {
+    backgroundColor: palette.cyan,
+    borderRadius: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  buttonSecondary: { backgroundColor: palette.violet },
+  buttonCompact: { paddingVertical: 8, paddingHorizontal: 10, minWidth: 84 },
+  buttonText: { color: '#00121A', fontWeight: '700' },
+  actionRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+  tabBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    padding: 8,
+    borderTopWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#080d1f',
+  },
+  tab: {
+    width: '16.1%',
+    paddingVertical: 9,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  tabActive: { backgroundColor: 'rgba(59, 231, 255, 0.2)' },
+  tabText: { color: palette.text, fontSize: 12, fontWeight: '600' },
+  moreRail: { marginBottom: 10 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    marginRight: 8,
+    backgroundColor: '#0b1230',
+  },
+  chipActive: { backgroundColor: 'rgba(155, 92, 255, 0.28)' },
+  chipText: { color: palette.text, fontSize: 12, fontWeight: '700' },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    gap: 8,
+  },
+  itemCard: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: '#0c142d',
+    marginBottom: 8,
+  },
+  cardTitle: { color: palette.text, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  roomInfo: { marginTop: 8, padding: 8, backgroundColor: '#0d1635', borderRadius: 10 },
+  warning: { color: palette.amber, marginBottom: 8 },
 });
